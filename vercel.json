@@ -1,0 +1,29 @@
+{
+  "buildCommand": "npm run build",
+  "devCommand": "npm run dev",
+  "installCommand": "npm install",
+  "crons": [
+    {
+      "path": "/api/cron/report-reminder",
+      "schedule": "0 1 * * 4"
+    },
+    {
+      "path": "/api/cron/chat-cleanup",
+      "schedule": "0 3 * * *"
+    }
+  ],
+  "functions": {
+    "src/app/api/admin/documents/upload/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/admin/embed/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/chat/route.ts": {
+      "maxDuration": 30
+    },
+    "src/app/api/admin/reports/summary/route.ts": {
+      "maxDuration": 30
+    }
+  }
+}
