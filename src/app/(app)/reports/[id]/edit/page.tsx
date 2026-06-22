@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { notFound, redirect } from 'next/navigation'
 import ReportForm from '../../ReportForm'
-import type { WeeklyContent } from '../../report-types'
+import { defaultWeekly, type WeeklyContent } from '../../report-types'
 
 function getMondayOfWeek(date: Date): Date {
   const d = new Date(date)
@@ -48,7 +48,15 @@ export default async function EditReportPage({
   }
 
   const initialWeeklyDate = toDateStr(getMondayOfWeek(new Date(report.period_start + 'T00:00:00')))
-  const content = report.content as WeeklyContent
+  const raw = report.content as Partial<WeeklyContent>
+  const def = defaultWeekly(profile.organization ?? '')
+  const content: WeeklyContent = {
+    ...def,
+    ...raw,
+    budget:        raw.budget        ?? def.budget,
+    kpi_rows:      raw.kpi_rows      ?? def.kpi_rows,
+    activity_rows: raw.activity_rows ?? def.activity_rows,
+  }
 
   return (
     <ReportForm
