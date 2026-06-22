@@ -14,7 +14,7 @@ export default function SessionGuard() {
   const logout = useCallback(() => {
     localStorage.removeItem(LS_KEY)
     const supabase = createClient()
-    supabase.auth.signOut().then(() => {
+    supabase.auth.signOut({ scope: 'local' }).then(() => {
       window.location.href = '/auth/login?reason=timeout'
     })
   }, [])

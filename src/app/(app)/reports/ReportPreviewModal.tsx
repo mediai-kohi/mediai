@@ -2,7 +2,6 @@
 
 import {
   WeeklyContent,
-  MonthlyContent,
   KPI_LABELS,
   ACTIVITY_LABELS,
   calcRate,
@@ -10,12 +9,10 @@ import {
   calcBudgetSubtotal,
   fmtNum,
 } from './report-types'
-// calcBudgetSubtotal used for totals
 
 interface Props {
-  type: 'weekly' | 'monthly'
   periodLabel: string
-  content: WeeklyContent | MonthlyContent
+  content: WeeklyContent
   onClose: () => void
 }
 
@@ -26,7 +23,15 @@ const TDC = `${TD} text-center`
 const TDR = `${TD} text-right tabular-nums`
 
 function WeeklyPreview({ content, periodLabel }: { content: WeeklyContent; periodLabel: string }) {
-  const { org_info, kpi_rows, activity_rows } = content
+  const { org_info, kpi_rows, activity_rows, budget_plan } = content
+  const safeBudget = content.budget ?? {
+    operator_gov: { budget: '', executed: '' },
+    operator_self: { budget: '', executed: '' },
+  }
+  const opGov  = calcBudgetRow(safeBudget.operator_gov)
+  const opSelf = calcBudgetRow(safeBudget.operator_self)
+  const total  = calcBudgetSubtotal(safeBudget.operator_gov, safeBudget.operator_self)
+
   return (
     <div className="space-y-5">
       <h2 className="text-center text-base font-bold text-gray-900 mb-1">주간 실적보고서</h2>
@@ -111,113 +116,10 @@ function WeeklyPreview({ content, periodLabel }: { content: WeeklyContent; perio
           </tbody>
         </table>
       </section>
-    </div>
-  )
-}
 
-function MonthlyPreview({ content, periodLabel }: { content: MonthlyContent; periodLabel: string }) {
-  const { org_info, achievement_plan, budget, budget_plan } = content
-  // 신규 포맷(kpi_rows) vs 구형 포맷(quantitative) 호환
-  const c = content as any
-  const kpi_rows: { target: string; actual: string }[] | null = Array.isArray(c.kpi_rows) ? c.kpi_rows : null
-  const qualTarget: string = c.qualitative?.target ?? ''
-  const qualActual: string = c.qualitative?.actual ?? ''
-  const qualRate: string = c.qualitative?.rate ?? ''
-
-  const opGov  = calcBudgetRow(budget.operator_gov)
-  const opSelf = calcBudgetRow(budget.operator_self)
-  const total  = calcBudgetSubtotal(budget.operator_gov, budget.operator_self)
-
-  return (
-    <div className="space-y-5">
-      <h2 className="text-center text-base font-bold text-gray-900 mb-1">월간 실적보고서</h2>
-      <p className="text-center text-sm text-gray-600 mb-4">{periodLabel}</p>
-
-      {/* 1. 수행기관 정보 */}
+      {/* 4. 예산 집행현황 */}
       <section>
-        <h3 className="text-xs font-bold text-gray-700 mb-1 border-b border-gray-400 pb-0.5">1. 수행기관 정보</h3>
-        <table className="w-full border-collapse text-xs">
-          <tbody>
-            <tr>
-              <td className={`${TH} w-24`}>기관명</td>
-              <td className={TD} colSpan={3}>{org_info.operator || '—'}</td>
-            </tr>
-          </tbody>
-        </table>
-      </section>
-
-      {/* 2. 정량 및 정성 실적 */}
-      <section>
-        <h3 className="text-xs font-bold text-gray-700 mb-1 border-b border-gray-400 pb-0.5">2. 정량 및 정성 실적</h3>
-
-        {/* 정량실적 */}
-        <p className="text-xs font-semibold text-gray-600 mb-1">정량실적</p>
-        <table className="w-full border-collapse text-xs mb-3">
-          <thead>
-            <tr>
-              <th className={`${TH} w-32`}>지표명</th>
-              <th className={`${TH} w-20`}>연간목표(A)</th>
-              <th className={`${TH} w-20`}>누적실적(B)</th>
-              <th className={`${TH} w-20`}>달성률(B/A)</th>
-            </tr>
-          </thead>
-          <tbody>
-            {kpi_rows
-              ? KPI_LABELS.map((label, i) => {
-                  const row = kpi_rows[i] ?? { target: '', actual: '' }
-                  const isManpower = label === '전문인력 양성(명)'
-                  const actualSub = (row as { actual_sub?: string }).actual_sub
-                  return (
-                    <tr key={label}>
-                      <td className={TD}>{label}</td>
-                      <td className={TDC}>{fmtNum(row.target) || '—'}</td>
-                      <td className={TDC}>
-                        {isManpower ? (
-                          <div className="text-left space-y-0.5">
-                            <div>수료: {fmtNum(row.actual) || '—'}</div>
-                            <div>교육중: {fmtNum(actualSub ?? '') || '—'}</div>
-                          </div>
-                        ) : (fmtNum(row.actual) || '—')}
-                      </td>
-                      <td className={TDC}>{calcRate(row.target, row.actual)}</td>
-                    </tr>
-                  )
-                })
-              : <tr><td colSpan={4} className={`${TD} text-center`}>—</td></tr>
-            }
-          </tbody>
-        </table>
-
-        {/* 정성실적 */}
-        <p className="text-xs font-semibold text-gray-600 mb-1">정성실적</p>
-        <table className="w-full border-collapse text-xs mb-3">
-          <thead>
-            <tr>
-              <th className={TH}>목표</th>
-              <th className={TH}>실적</th>
-              <th className={`${TH} w-20`}>달성률</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td className={`${TD} whitespace-pre-wrap align-top`}>{qualTarget || '—'}</td>
-              <td className={`${TD} whitespace-pre-wrap align-top`}>{qualActual || '—'}</td>
-              <td className={TDC}>{qualRate || '—'}</td>
-            </tr>
-          </tbody>
-        </table>
-
-        {achievement_plan && (
-          <div className="border border-gray-400 px-3 py-2">
-            <p className="text-xs font-semibold text-gray-600 mb-1">향후목표 달성계획</p>
-            <p className="text-xs text-gray-800 whitespace-pre-wrap">{achievement_plan}</p>
-          </div>
-        )}
-      </section>
-
-      {/* 3. 예산 집행현황 */}
-      <section>
-        <h3 className="text-xs font-bold text-gray-700 mb-1 border-b border-gray-400 pb-0.5">3. 예산 집행현황</h3>
+        <h3 className="text-xs font-bold text-gray-700 mb-1 border-b border-gray-400 pb-0.5">4. 예산 집행현황</h3>
         <table className="w-full border-collapse text-xs">
           <thead>
             <tr>
@@ -231,15 +133,15 @@ function MonthlyPreview({ content, periodLabel }: { content: MonthlyContent; per
           <tbody>
             <tr>
               <td className={`${TH} font-medium`}>국고보조금</td>
-              <td className={TDR}>{fmtNum(budget.operator_gov.budget) || '—'}</td>
-              <td className={TDR}>{fmtNum(budget.operator_gov.executed) || '—'}</td>
+              <td className={TDR}>{fmtNum(safeBudget.operator_gov.budget) || '—'}</td>
+              <td className={TDR}>{fmtNum(safeBudget.operator_gov.executed) || '—'}</td>
               <td className={TDR}>{opGov.budget ? opGov.remaining.toLocaleString('ko-KR') : '—'}</td>
               <td className={TDC}>{opGov.rate}</td>
             </tr>
             <tr>
               <td className={`${TH} font-medium`}>자기부담금</td>
-              <td className={TDR}>{fmtNum(budget.operator_self.budget) || '—'}</td>
-              <td className={TDR}>{fmtNum(budget.operator_self.executed) || '—'}</td>
+              <td className={TDR}>{fmtNum(safeBudget.operator_self.budget) || '—'}</td>
+              <td className={TDR}>{fmtNum(safeBudget.operator_self.executed) || '—'}</td>
               <td className={TDR}>{opSelf.budget ? opSelf.remaining.toLocaleString('ko-KR') : '—'}</td>
               <td className={TDC}>{opSelf.rate}</td>
             </tr>
@@ -263,12 +165,11 @@ function MonthlyPreview({ content, periodLabel }: { content: MonthlyContent; per
   )
 }
 
-export default function ReportPreviewModal({ type, periodLabel, content, onClose }: Props) {
+export default function ReportPreviewModal({ periodLabel, content, onClose }: Props) {
   const handlePrint = () => window.print()
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 overflow-y-auto py-6 px-4 print:p-0 print:bg-white print:overflow-visible print:block">
-      {/* 인쇄 시 이 ID가 있는 요소만 출력 */}
       <div id="report-print-area" className="bg-white w-full max-w-3xl rounded-xl shadow-2xl print:rounded-none print:shadow-none print:max-w-none print:w-auto">
         {/* 액션 바 (인쇄 시 숨김) */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200 print:hidden">
@@ -296,10 +197,7 @@ export default function ReportPreviewModal({ type, periodLabel, content, onClose
 
         {/* 본문 */}
         <div className="p-6 print:p-6">
-          {type === 'weekly'
-            ? <WeeklyPreview content={content as WeeklyContent} periodLabel={periodLabel} />
-            : <MonthlyPreview content={content as MonthlyContent} periodLabel={periodLabel} />
-          }
+          <WeeklyPreview content={content} periodLabel={periodLabel} />
         </div>
       </div>
     </div>

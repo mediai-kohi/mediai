@@ -4,6 +4,23 @@ const ORG_COLORS = [
   'sky', 'indigo', 'violet', 'fuchsia', 'rose',
 ] as const
 
+// 기관 고정 순서 (색상 배정 기준)
+export const FIXED_ORG_ORDER = [
+  '한국보건복지인재원',
+  '삼성서울병원',
+  '서울대학교병원',
+  '순천향대학교 부속 천안병원',
+  '연세의료원',
+  '중앙대학교광명병원',
+  'KMI한국의학연구소',
+  '엔디에스',
+  '차의과학대학교 분당차병원',
+] as const
+
+const FIXED_ORG_COLOR_MAP: Record<string, string> = Object.fromEntries(
+  FIXED_ORG_ORDER.map((org, i) => [org, ORG_COLORS[i % ORG_COLORS.length]])
+)
+
 export const COLOR_BG: Record<string, string> = {
   red:     'bg-red-500',
   amber:   'bg-amber-500',
@@ -44,12 +61,20 @@ export const COLOR_LIGHT: Record<string, string> = {
   gray:    'bg-gray-100 text-gray-600',
 }
 
-// CalendarView의 getOrgColor와 동일한 해시 함수 — 기관명 → 색상 키 결정
+// 고정 순서 기반 색상 결정 — 미등록 기관은 해시 폴백
 export function getOrgColor(orgName: string | null | undefined): string {
   if (!orgName) return 'gray'
+  if (orgName in FIXED_ORG_COLOR_MAP) return FIXED_ORG_COLOR_MAP[orgName]
   let hash = 5381
   for (let i = 0; i < orgName.length; i++) {
     hash = ((hash << 5) + hash + orgName.charCodeAt(i)) | 0
   }
   return ORG_COLORS[Math.abs(hash) % ORG_COLORS.length]
+}
+
+// 기관 목록을 고정 순서 기준으로 정렬 (미등록은 알파벳순 후속)
+export function sortOrgsByFixedOrder(orgs: string[]): string[] {
+  const known   = FIXED_ORG_ORDER.filter(o => orgs.includes(o))
+  const unknown = orgs.filter(o => !(FIXED_ORG_ORDER as readonly string[]).includes(o)).sort()
+  return [...known, ...unknown]
 }

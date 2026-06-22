@@ -39,33 +39,7 @@ export async function GET(request: Request) {
     to.setDate(to.getDate() + 7)
   }
 
-  if (profile.role !== 'super_admin') {
-    // Two separate queries to avoid PostgREST string-parse issues with Korean org names
-    const [ownRes, publicRes] = await Promise.all([
-      admin.from('events')
-        .select('*')
-        .eq('organization', profile.organization)
-        .gte('start_at', from.toISOString())
-        .lte('start_at', to.toISOString()),
-      admin.from('events')
-        .select('*')
-        .eq('is_public', true)
-        .gte('start_at', from.toISOString())
-        .lte('start_at', to.toISOString()),
-    ])
-
-    if (ownRes.error) return NextResponse.json({ error: ownRes.error.message }, { status: 500 })
-
-    const merged = [...(ownRes.data ?? []), ...(publicRes.data ?? [])]
-      .filter((e, i, arr) => arr.findIndex((x: { id: string }) => x.id === e.id) === i)
-      .sort((a: { start_at: string }, b: { start_at: string }) =>
-        new Date(a.start_at).getTime() - new Date(b.start_at).getTime()
-      )
-
-    return NextResponse.json(merged)
-  }
-
-  // 관리자
+  // 모든 사용자가 전체 일정 조회 가능, 기관 필터 지원
   let query = admin
     .from('events')
     .select('*')
@@ -74,7 +48,10 @@ export async function GET(request: Request) {
     .order('start_at', { ascending: true })
 
   const org = searchParams.get('organization')
-  if (org && org !== 'all') query = query.eq('organization', org)
+  if (org && org !== 'all') {
+    // 선택한 기관 일정 + is_public=true 일정 항상 포함
+    query = query.or(`organization.eq.${org},is_public.eq.true`)
+  }
 
   const { data, error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -94,24 +71,135 @@ export async function DELETE(request: Request) {
   const admin = createAdminClient()
   const { data: profile } = await admin
     .from('profiles')
-    .select('role')
+    .select('role, organization')
     .eq('id', user.id)
     .single()
 
+  const isAdmin = profile?.role === 'super_admin'
+
   if (groupId) {
     let query = admin.from('events').delete().eq('repeat_group_id', groupId)
-    if (profile?.role !== 'super_admin') query = query.eq('user_id', user.id)
+    if (!isAdmin) {
+      // 같은 기관 사용자는 기관 단위 삭제 허용 (단일 삭제와 동일한 sameOrg 정책)
+      if (profile?.organization) {
+        query = query.eq('organization', profile.organization)
+      } else {
+        query = query.eq('user_id', user.id)
+      }
+    }
     const { error } = await query
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   } else {
-    // 제목 기반 삭제: 관리자는 전체, 일반 사용자는 본인 소유만
+    // 제목 기반 삭제: 같은 기관 사용자는 기관 단위 삭제 허용
     let titleQuery = admin.from('events').delete().eq('title', title!)
-    if (profile?.role !== 'super_admin') titleQuery = titleQuery.eq('user_id', user.id)
+    if (!isAdmin) {
+      if (profile?.organization) {
+        titleQuery = titleQuery.eq('organization', profile.organization)
+      } else {
+        titleQuery = titleQuery.eq('user_id', user.id)
+      }
+    }
     const { error } = await titleQuery
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
   return NextResponse.json({ ok: true })
+}
+
+export async function PATCH(request: Request) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const body = await request.json()
+  const {
+    group_id, title_match, from_start_at, current_id,
+    title, description, color, is_allday, is_public, organization,
+    new_start_at, new_end_at,
+  } = body
+
+  if (!from_start_at || !current_id) {
+    return NextResponse.json({ error: 'from_start_at and current_id required' }, { status: 400 })
+  }
+  if (!group_id && !title_match) {
+    return NextResponse.json({ error: 'group_id or title_match required' }, { status: 400 })
+  }
+
+  const admin = createAdminClient()
+  const { data: profile } = await admin
+    .from('profiles')
+    .select('role, organization')
+    .eq('id', user.id)
+    .single()
+
+  const isAdmin = profile?.role === 'super_admin'
+
+  let selectQuery = admin
+    .from('events')
+    .select('id, start_at, end_at')
+    .gte('start_at', from_start_at)
+
+  if (group_id) {
+    selectQuery = selectQuery.eq('repeat_group_id', group_id)
+  } else {
+    selectQuery = selectQuery.eq('title', title_match)
+  }
+
+  if (!isAdmin) {
+    if (profile?.organization) {
+      selectQuery = selectQuery.eq('organization', profile.organization)
+    } else {
+      selectQuery = selectQuery.eq('user_id', user.id)
+    }
+  }
+
+  const { data: futureEvents, error: fetchError } = await selectQuery
+  if (fetchError) return NextResponse.json({ error: fetchError.message }, { status: 500 })
+  if (!futureEvents || futureEvents.length === 0) {
+    return NextResponse.json({ ok: true, updated: 0 })
+  }
+
+  const newStartDate = new Date(new_start_at)
+  const newEndDate   = new Date(new_end_at)
+  const offsetMs     = newStartDate.getTime() - new Date(from_start_at).getTime()
+  const durationMs   = newEndDate.getTime() - newStartDate.getTime()
+
+  const commonFields = {
+    title, description, color, is_allday, is_public,
+    ...(isAdmin && organization ? { organization } : {}),
+  }
+
+  const updateResults = await Promise.all(
+    futureEvents.map(ev => {
+      let start_at_upd: string, end_at_upd: string
+
+      if (ev.id === current_id) {
+        start_at_upd = new_start_at
+        end_at_upd   = new_end_at
+      } else if (is_allday) {
+        // 날짜를 offsetMs만큼 이동한 뒤 종일 형식으로 정규화
+        const shifted = new Date(new Date(ev.start_at).getTime() + offsetMs)
+        const ymd = `${shifted.getUTCFullYear()}-${String(shifted.getUTCMonth()+1).padStart(2,'0')}-${String(shifted.getUTCDate()).padStart(2,'0')}`
+        start_at_upd = `${ymd}T00:00:00.000Z`
+        end_at_upd   = `${ymd}T23:59:59.999Z`
+      } else {
+        // 날짜+시간 모두 동일한 offset으로 이동 (요일 변경 포함)
+        const ns = new Date(new Date(ev.start_at).getTime() + offsetMs)
+        start_at_upd = ns.toISOString()
+        end_at_upd   = new Date(ns.getTime() + durationMs).toISOString()
+      }
+
+      return admin
+        .from('events')
+        .update({ ...commonFields, start_at: start_at_upd, end_at: end_at_upd })
+        .eq('id', ev.id)
+    })
+  )
+
+  const firstErr = updateResults.find(r => r.error)
+  if (firstErr?.error) return NextResponse.json({ error: firstErr.error.message }, { status: 500 })
+
+  return NextResponse.json({ ok: true, updated: futureEvents.length })
 }
 
 export async function POST(request: Request) {

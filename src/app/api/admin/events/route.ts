@@ -34,7 +34,10 @@ export async function GET(request: Request) {
     .lte('start_at', to.toISOString())
     .order('start_at', { ascending: true })
 
-  if (org !== 'all') query = query.eq('organization', org)
+  if (org !== 'all') {
+    // 선택한 기관 일정 + is_public=true 일정 항상 포함
+    query = query.or(`organization.eq.${org},is_public.eq.true`)
+  }
 
   const { data, error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

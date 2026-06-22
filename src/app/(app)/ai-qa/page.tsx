@@ -14,6 +14,66 @@ interface Message {
   sources?: Source[]
 }
 
+interface Document {
+  id: string
+  filename: string
+  created_at: string
+}
+
+function DocumentList() {
+  const [docs, setDocs] = useState<Document[]>([])
+  const [open, setOpen] = useState(false)
+  const [loaded, setLoaded] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/documents')
+      .then(r => r.json())
+      .then(data => { if (Array.isArray(data)) setDocs(data) })
+      .finally(() => setLoaded(true))
+  }, [])
+
+  if (!loaded || docs.length === 0) return null
+
+  return (
+    <div className="flex-none border-b border-gray-100 bg-gray-50">
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center justify-between px-4 py-2.5 text-left"
+      >
+        <div className="flex items-center gap-2">
+          <svg className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+          </svg>
+          <span className="text-xs font-medium text-gray-600">참조 문서</span>
+          <span className="text-xs text-gray-400">{docs.length}개</span>
+        </div>
+        <svg
+          className={`w-3.5 h-3.5 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`}
+          fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="px-4 pb-3 flex flex-wrap gap-1.5">
+          {docs.map(doc => (
+            <span
+              key={doc.id}
+              className="inline-flex items-center gap-1 px-2.5 py-1 bg-white border border-gray-200 text-xs text-gray-600 rounded-lg"
+            >
+              <svg className="w-3 h-3 text-red-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
+              </svg>
+              {doc.filename}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function SourcesBadge({ sources }: { sources: Source[] }) {
   const [open, setOpen] = useState(false)
   if (!sources || sources.length === 0) return null
@@ -69,7 +129,7 @@ export default function AiQaPage() {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const abortRef = useRef<AbortController | null>(null)
 
-  // 히스토리 로드
+  // 이전 대화 로드 (30일 이내)
   useEffect(() => {
     fetch('/api/chat/history')
       .then((r) => r.json())
@@ -105,15 +165,18 @@ export default function AiQaPage() {
   }
 
   const clearHistory = () => {
+    fetch('/api/chat/history', { method: 'DELETE' })
     setMessages([])
   }
 
-  const sendMessage = async () => {
-    const text = input.trim()
+  const sendMessage = async (preset?: string) => {
+    const text = (preset ?? input).trim()
     if (!text || loading) return
 
-    setInput('')
-    if (textareaRef.current) textareaRef.current.style.height = 'auto'
+    if (!preset) {
+      setInput('')
+      if (textareaRef.current) textareaRef.current.style.height = 'auto'
+    }
 
     const userMsg: Message = { id: `u-${Date.now()}`, role: 'user', content: text }
     const assistantId = `a-${Date.now()}`
@@ -202,15 +265,27 @@ export default function AiQaPage() {
           <h1 className="text-sm font-semibold text-gray-900">AI 질의응답</h1>
           <p className="text-xs text-gray-400 mt-0.5">규정 문서 기반으로 답변합니다</p>
         </div>
-        {messages.length > 0 && (
-          <button
-            onClick={clearHistory}
-            className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1 rounded hover:bg-gray-100 transition-colors"
-          >
-            새 대화
-          </button>
-        )}
+        <button
+          onClick={clearHistory}
+          className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1 rounded hover:bg-gray-100 transition-colors"
+        >
+          새 대화
+        </button>
       </div>
+
+      {/* 문서 다운로드 안내 */}
+      <div className="flex-none bg-amber-50 border-b border-amber-100 px-4 py-2">
+        <p className="text-xs text-amber-800 leading-relaxed">
+          규정 문서는 사업 전용 홈페이지(
+          <a href="https://edu.kohi.or.kr/mediai" target="_blank" rel="noopener noreferrer" className="underline hover:text-amber-900">https://edu.kohi.or.kr/mediai</a>
+          ) 및 국가법령정보센터(
+          <a href="https://www.law.go.kr/main.html" target="_blank" rel="noopener noreferrer" className="underline hover:text-amber-900">https://www.law.go.kr/main.html</a>
+          )에서 다운받으실 수 있습니다.
+        </p>
+      </div>
+
+      {/* 문서 목록 */}
+      <DocumentList />
 
       {/* 채팅 영역 */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 pb-2">
@@ -222,14 +297,29 @@ export default function AiQaPage() {
             </svg>
           </div>
         ) : messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-center">
+          <div className="flex flex-col items-center justify-center py-10 text-center">
             <div className="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center mb-4">
               <svg className="w-7 h-7 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
               </svg>
             </div>
             <p className="text-sm font-medium text-gray-700 mb-1">무엇이 궁금하신가요?</p>
-            <p className="text-xs text-gray-400">등록된 규정 문서를 바탕으로 답변드립니다.</p>
+            <p className="text-xs text-gray-400 mb-6">등록된 규정 문서를 바탕으로 답변드립니다.</p>
+            <div className="w-full max-w-sm flex flex-col gap-2">
+              {[
+                '교육 이수 기준과 필수 이수 시간은 어떻게 되나요?',
+                '직급별 필수 교육 과정에는 어떤 것들이 있나요?',
+                '사업비 집행 기준과 절차는 어떻게 되나요?',
+              ].map((q) => (
+                <button
+                  key={q}
+                  onClick={() => sendMessage(q)}
+                  className="w-full text-left px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm text-gray-700 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 transition-colors"
+                >
+                  {q}
+                </button>
+              ))}
+            </div>
           </div>
         ) : (
           messages.map((msg) => (
@@ -283,7 +373,7 @@ export default function AiQaPage() {
             disabled={loading}
           />
           <button
-            onClick={sendMessage}
+            onClick={() => sendMessage()}
             disabled={loading || !input.trim()}
             className="flex-none w-8 h-8 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:bg-gray-200 flex items-center justify-center transition-colors"
           >

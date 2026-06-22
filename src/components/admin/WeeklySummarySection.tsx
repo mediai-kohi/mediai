@@ -479,13 +479,14 @@ export default function WeeklySummarySection({ initialData, aiReport }: Props) {
 
       {/* ── 3. 예산 집행 현황 ── */}
       {data.budget && data.budget.total_budget > 0 && (
-        <div className="bg-white border border-gray-200 rounded-2xl p-5">
-          <div className="flex items-center gap-2.5 mb-4">
+        <div>
+          <div className="flex items-center gap-2.5 mb-3">
             <span className="inline-flex items-center justify-center w-5 h-5 rounded bg-gray-800 text-white text-[10px] font-bold flex-shrink-0">3</span>
             <p className="text-sm font-bold text-gray-800">예산 집행 현황</p>
             <span className="text-[11px] font-semibold text-gray-400 tracking-wider">BUDGET</span>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div className="bg-white border border-gray-200 rounded-2xl p-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div>
               <p className="text-[10px] text-gray-400 tracking-wide mb-1">TOTAL EXECUTED BUDGET</p>
               <p className="text-2xl font-bold text-gray-900">
@@ -521,6 +522,7 @@ export default function WeeklySummarySection({ initialData, aiReport }: Props) {
                 </div>
               </div>
             )}
+            </div>
           </div>
         </div>
       )}

@@ -1,14 +1,12 @@
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
 
-type ReportType = 'weekly' | 'monthly'
 type ReportStatus = string
 
 interface Report {
   id: string
-  type: ReportType
+  type: string
   period_label: string
   period_start: string
   period_end: string
@@ -50,41 +48,19 @@ export default function ReportList({
   myReports: Report[]
   orgReports: Report[]
 }) {
-  const [tab, setTab] = useState<ReportType>('weekly')
-
-  const filteredMy = myReports.filter((r) => r.type === tab)
-  const filteredOrg = orgReports.filter((r) => r.type === tab)
-
   return (
     <div className="max-w-2xl mx-auto md:max-w-3xl pb-24">
-      {/* Sticky header */}
-      <div className="sticky top-0 z-10 bg-gray-50 pt-4 pb-2 px-4">
-        <div className="flex gap-1">
-          {(['weekly', 'monthly'] as ReportType[]).map((t) => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                tab === t ? 'bg-blue-600 text-white' : 'text-gray-500 hover:bg-gray-200'
-              }`}
-            >
-              {t === 'weekly' ? '주간 리포트' : '월간 리포트'}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="px-4 mt-4 space-y-6">
+      <div className="px-4 pt-4 space-y-6">
         {/* 내 보고서 */}
         <section>
           <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">내 리포트</h2>
-          {filteredMy.length === 0 ? (
+          {myReports.length === 0 ? (
             <div className="bg-white border border-gray-200 rounded-xl p-6 text-center">
               <p className="text-sm text-gray-400">작성된 리포트가 없습니다.</p>
             </div>
           ) : (
             <div className="space-y-2">
-              {filteredMy.map((report) => (
+              {myReports.map((report) => (
                 <Link
                   key={report.id}
                   href={`/reports/${report.id}`}
@@ -106,11 +82,11 @@ export default function ReportList({
         </section>
 
         {/* 우리 기관 보고서 */}
-        {filteredOrg.length > 0 && (
+        {orgReports.length > 0 && (
           <section>
             <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">우리 기관 리포트</h2>
             <div className="space-y-2">
-              {filteredOrg.map((report) => (
+              {orgReports.map((report) => (
                 <Link
                   key={report.id}
                   href={`/reports/${report.id}`}

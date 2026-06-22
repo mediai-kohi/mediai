@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { notFound, redirect } from 'next/navigation'
 import ReportForm from '../../ReportForm'
-import type { ReportType, WeeklyContent, MonthlyContent } from '../../report-types'
+import type { WeeklyContent } from '../../report-types'
 
 function getMondayOfWeek(date: Date): Date {
   const d = new Date(date)
@@ -47,31 +47,15 @@ export default async function EditReportPage({
     if (!allowedStatuses.includes(report.status)) redirect(`/reports/${id}`)
   }
 
-  const type = report.type as ReportType
-  let initialWeeklyDate: string | undefined
-  let initialMonthlyYear: number | undefined
-  let initialMonthlyMonth: number | undefined
-
-  if (type === 'weekly') {
-    initialWeeklyDate = toDateStr(getMondayOfWeek(new Date(report.period_start + 'T00:00:00')))
-  } else {
-    const d = new Date(report.period_start + 'T00:00:00')
-    initialMonthlyYear = d.getFullYear()
-    initialMonthlyMonth = d.getMonth() + 1
-  }
-
-  const content = report.content as WeeklyContent | MonthlyContent
+  const initialWeeklyDate = toDateStr(getMondayOfWeek(new Date(report.period_start + 'T00:00:00')))
+  const content = report.content as WeeklyContent
 
   return (
     <ReportForm
       mode={isResubmit ? 'resubmit' : 'edit'}
       reportId={id}
-      initialType={type}
       initialWeeklyDate={initialWeeklyDate}
-      initialMonthlyYear={initialMonthlyYear}
-      initialMonthlyMonth={initialMonthlyMonth}
-      initialWeeklyContent={type === 'weekly' ? content as WeeklyContent : undefined}
-      initialMonthlyContent={type === 'monthly' ? content as MonthlyContent : undefined}
+      initialWeeklyContent={content}
       forceAllowSubmit={isResubmit}
       userProfile={{ organization: profile.organization }}
       initialAttachments={(attachments ?? []) as { id: string; filename: string; size: number }[]}

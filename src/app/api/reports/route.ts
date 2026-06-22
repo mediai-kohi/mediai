@@ -61,7 +61,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
   }
 
-  if (!['weekly', 'monthly'].includes(type)) {
+  if (type !== 'weekly') {
     return NextResponse.json({ error: 'Invalid type' }, { status: 400 })
   }
 
@@ -121,11 +121,10 @@ export async function POST(request: Request) {
   }
 
   if (status === 'submitted') {
-    const reportTypeLabel = type === 'weekly' ? '주간보고' : '월간보고'
     notifyAdmins(
       'new_report',
-      '새 ' + reportTypeLabel + ' 제출: ' + period_label,
-      '[' + (profile.organization ?? '') + '] ' + reportTypeLabel + ' 제출 (' + period_start + ' ~ ' + period_end + ')',
+      '새 주간보고 제출: ' + period_label,
+      '[' + (profile.organization ?? '') + '] 주간보고 제출 (' + period_start + ' ~ ' + period_end + ')',
       data.id
     ).catch((err) => console.error('[notify new_report]', err))
   }

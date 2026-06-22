@@ -3,12 +3,11 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  WeeklyContent, MonthlyContent,
+  WeeklyContent,
   KPI_LABELS, ACTIVITY_LABELS,
   calcRate, calcBudgetRow, calcBudgetSubtotal, fmtNum,
   ReportStatus,
 } from '../report-types'
-// calcBudgetSubtotal used for totals
 
 const STATUS_CONFIG: Record<string, { label: string; cls: string }> = {
   draft:              { label: '임시저장',   cls: 'bg-gray-100 text-gray-600' },
@@ -39,11 +38,11 @@ function formatSize(bytes: number) {
 interface Report {
   id: string
   user_id: string
-  type: 'weekly' | 'monthly'
+  type: 'weekly'
   period_label: string
   period_start: string
   period_end: string
-  content: WeeklyContent | MonthlyContent
+  content: WeeklyContent
   status: ReportStatus
   revision_reason: string | null
   revision_comment: string | null
@@ -72,7 +71,11 @@ const TDR = `${TD} text-right tabular-nums`
 // Weekly 상세 뷰
 // ─────────────────────────────────────────────────
 function WeeklyDetail({ content }: { content: WeeklyContent }) {
-  const { org_info, kpi_rows, activity_rows } = content
+  const { org_info, kpi_rows, activity_rows, budget, budget_plan } = content
+  const safeBudget = budget ?? { operator_gov: { budget: '', executed: '' }, operator_self: { budget: '', executed: '' } }
+  const opGov  = calcBudgetRow(safeBudget.operator_gov)
+  const opSelf = calcBudgetRow(safeBudget.operator_self)
+  const total  = calcBudgetSubtotal(safeBudget.operator_gov, safeBudget.operator_self)
 
   return (
     <div className="space-y-5">
@@ -150,106 +153,6 @@ function WeeklyDetail({ content }: { content: WeeklyContent }) {
           </table>
         </div>
       </section>
-    </div>
-  )
-}
-
-// ─────────────────────────────────────────────────
-// Monthly 상세 뷰
-// ─────────────────────────────────────────────────
-function MonthlyDetail({ content }: { content: MonthlyContent }) {
-  const { org_info, achievement_plan, budget, budget_plan } = content
-  // 신규 포맷(kpi_rows) vs 구형 포맷(quantitative) 호환
-  const c = content as any
-  const kpi_rows: { target: string; actual: string }[] | null = Array.isArray(c.kpi_rows) ? c.kpi_rows : null
-  const qualTarget: string = c.qualitative?.target ?? ''
-  const qualActual: string = c.qualitative?.actual ?? ''
-  const qualRate: string = c.qualitative?.rate ?? ''
-
-  const opGov  = calcBudgetRow(budget.operator_gov)
-  const opSelf = calcBudgetRow(budget.operator_self)
-  const total  = calcBudgetSubtotal(budget.operator_gov, budget.operator_self)
-
-  return (
-    <div className="space-y-5">
-      {/* 수행기관 정보 */}
-      <section>
-        <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">수행기관 정보</h3>
-        <div className="overflow-x-auto rounded-lg border border-gray-200">
-          <table className="w-full border-collapse">
-            <tbody>
-              <tr>
-                <td className={`${TH} w-24`}>기관명</td>
-                <td className={TD} colSpan={3}>{org_info.operator || '—'}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      {/* 정량/정성 실적 */}
-      <section>
-        <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">정량 및 정성 실적</h3>
-
-        {/* 정량실적 */}
-        <p className="text-xs font-medium text-gray-500 mb-1.5">정량실적</p>
-        <div className="overflow-x-auto rounded-lg border border-gray-200 mb-3">
-          <table className="w-full border-collapse min-w-[360px]">
-            <thead>
-              <tr>
-                <th className={`${TH} w-32`}>지표명</th>
-                <th className={TH}>연간목표(A)</th>
-                <th className={TH}>누적실적(B)</th>
-                <th className={`${TH} w-20`}>달성률</th>
-              </tr>
-            </thead>
-            <tbody>
-              {kpi_rows
-                ? KPI_LABELS.map((label, i) => {
-                    const row = kpi_rows[i] ?? { target: '', actual: '' }
-                    return (
-                      <tr key={label}>
-                        <td className={TH}>{label}</td>
-                        <td className={TDC}>{fmtNum(row.target) || '—'}</td>
-                        <td className={TDC}>{fmtNum(row.actual) || '—'}</td>
-                        <td className={`${TDC} font-semibold text-blue-600`}>{calcRate(row.target, row.actual)}</td>
-                      </tr>
-                    )
-                  })
-                : <tr><td colSpan={4} className={`${TD} text-center`}>—</td></tr>
-              }
-            </tbody>
-          </table>
-        </div>
-
-        {/* 정성실적 */}
-        <p className="text-xs font-medium text-gray-500 mb-1.5">정성실적</p>
-        <div className="overflow-x-auto rounded-lg border border-gray-200 mb-3">
-          <table className="w-full border-collapse">
-            <thead>
-              <tr>
-                <th className={TH}>목표</th>
-                <th className={TH}>실적</th>
-                <th className={`${TH} w-20`}>달성률</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td className={`${TD} whitespace-pre-wrap align-top`}>{qualTarget || '—'}</td>
-                <td className={`${TD} whitespace-pre-wrap align-top`}>{qualActual || '—'}</td>
-                <td className={`${TDC} font-semibold text-blue-600`}>{qualRate || '—'}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        {achievement_plan && (
-          <div>
-            <p className="text-xs font-medium text-gray-500 mb-1">향후목표 달성계획</p>
-            <p className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed bg-gray-50 rounded-xl px-4 py-3">{achievement_plan}</p>
-          </div>
-        )}
-      </section>
 
       {/* 예산 집행현황 */}
       <section>
@@ -268,15 +171,15 @@ function MonthlyDetail({ content }: { content: MonthlyContent }) {
             <tbody>
               <tr>
                 <td className={`${TH} font-medium`}>국고보조금</td>
-                <td className={TDR}>{fmtNum(budget.operator_gov.budget) || '—'}</td>
-                <td className={TDR}>{fmtNum(budget.operator_gov.executed) || '—'}</td>
+                <td className={TDR}>{fmtNum(safeBudget.operator_gov.budget) || '—'}</td>
+                <td className={TDR}>{fmtNum(safeBudget.operator_gov.executed) || '—'}</td>
                 <td className={TDR}>{opGov.budget ? opGov.remaining.toLocaleString('ko-KR') : '—'}</td>
                 <td className={`${TDC} font-medium text-blue-600`}>{opGov.rate}</td>
               </tr>
               <tr>
                 <td className={`${TH} font-medium`}>자기부담금</td>
-                <td className={TDR}>{fmtNum(budget.operator_self.budget) || '—'}</td>
-                <td className={TDR}>{fmtNum(budget.operator_self.executed) || '—'}</td>
+                <td className={TDR}>{fmtNum(safeBudget.operator_self.budget) || '—'}</td>
+                <td className={TDR}>{fmtNum(safeBudget.operator_self.executed) || '—'}</td>
                 <td className={TDR}>{opSelf.budget ? opSelf.remaining.toLocaleString('ko-KR') : '—'}</td>
                 <td className={`${TDC} font-medium text-blue-600`}>{opSelf.rate}</td>
               </tr>
@@ -301,173 +204,17 @@ function MonthlyDetail({ content }: { content: MonthlyContent }) {
   )
 }
 
-// ─────────────────────────────────────────────────
-// 월간보고 조회 시 기관 주간보고 목록
-// ─────────────────────────────────────────────────
-const STATUS_BADGE: Record<string, { text: string; cls: string }> = {
-  submitted:          { text: '제출됨',   cls: 'bg-blue-100 text-blue-700' },
-  approved:           { text: '승인됨',   cls: 'bg-green-100 text-green-700' },
-  revision_requested: { text: '수정요청', cls: 'bg-red-100 text-red-700' },
-  resubmitted:        { text: '재제출됨', cls: 'bg-purple-100 text-purple-700' },
-  revision_approved:  { text: '재승인됨', cls: 'bg-teal-100 text-teal-700' },
-}
-
-interface OrgWeekly {
-  id: string
-  period_label: string
-  status: string
-  content: WeeklyContent
-  author: { user_code: string; organization: string } | null
-}
-
-function OrgWeeklySection({ periodStart }: { periodStart: string }) {
-  const [list, setList] = useState<OrgWeekly[]>([])
-  const [loading, setLoading] = useState(true)
-  const [expandedId, setExpandedId] = useState<string | null>(null)
-
-  useEffect(() => {
-    const d = new Date(periodStart + 'T00:00:00')
-    const year = d.getFullYear()
-    const month = d.getMonth() + 1
-    fetch(`/api/reports/org?year=${year}&month=${month}`)
-      .then(r => r.ok ? r.json() : [])
-      .then(data => { setList(Array.isArray(data) ? data : []); setLoading(false) })
-      .catch(() => { setList([]); setLoading(false) })
-  }, [periodStart])
-
-  const badge = (s: string) => STATUS_BADGE[s] ?? { text: s, cls: 'bg-gray-100 text-gray-600' }
-
-  if (loading) return (
-    <div className="bg-white border border-gray-200 rounded-xl p-5">
-      <p className="text-xs text-gray-400">기관 주간보고 불러오는 중...</p>
-    </div>
-  )
-
-  return (
-    <div className="bg-white border border-gray-200 rounded-xl p-5">
-      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
-        이번 달 기관 주간보고 <span className="normal-case font-normal text-gray-400">({list.length}건)</span>
-      </p>
-
-      {list.length === 0 ? (
-        <p className="text-sm text-gray-400">이번 달 제출된 주간보고가 없습니다.</p>
-      ) : (
-        <div className="space-y-1.5">
-          {list.map(r => {
-            const b = badge(r.status)
-            const expanded = expandedId === r.id
-            return (
-              <div key={r.id} className="border border-gray-200 rounded-lg overflow-hidden">
-                <button
-                  type="button"
-                  onClick={() => setExpandedId(expanded ? null : r.id)}
-                  className="w-full flex items-center justify-between px-3 py-2.5 text-left hover:bg-gray-50 transition-colors"
-                >
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="text-sm font-medium text-gray-800 truncate">{r.period_label}</span>
-                    {(r.author?.user_code || r.author?.organization) && (
-                      <span className="text-xs text-gray-400 flex-shrink-0">{r.author?.user_code ?? r.author?.organization ?? '-'}</span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 flex-shrink-0 ml-2">
-                    <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${b.cls}`}>{b.text}</span>
-                    <svg className={`w-3.5 h-3.5 text-gray-400 transition-transform ${expanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
-                    </svg>
-                  </div>
-                </button>
-
-                {expanded && r.content?.version === 2 && (
-                  <div className="border-t border-gray-100 px-4 py-3 bg-gray-50 space-y-4">
-                    {/* KPI */}
-                    <section>
-                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">성과지표 달성 현황</p>
-                      <div className="overflow-x-auto rounded-lg border border-gray-200">
-                        <table className="w-full border-collapse min-w-[340px]">
-                          <thead>
-                            <tr>
-                              <th className={`${TH} w-28`}>지표명</th>
-                              <th className={TH}>연간목표(A)</th>
-                              <th className={TH}>누적실적(B)</th>
-                              <th className={`${TH} w-20`}>달성률</th>
-                              <th className={`${TH} w-24`}>비고</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {KPI_LABELS.map((label, i) => {
-                              const row = r.content.kpi_rows[i] ?? { target: '', actual: '' }
-                              return (
-                                <tr key={label}>
-                                  <td className={`${TH} font-medium`}>{label}</td>
-                                  <td className={TDC}>{fmtNum(row.target) || '—'}</td>
-                                  <td className={TDC}>{fmtNum(row.actual) || '—'}</td>
-                                  <td className={`${TDC} font-semibold text-blue-600`}>{calcRate(row.target, row.actual)}</td>
-                                  <td className={TD}>{(row as { note?: string }).note || '—'}</td>
-                                </tr>
-                              )
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    </section>
-
-                    {/* 주간 실적 */}
-                    <section>
-                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">주간 실적 및 계획</p>
-                      <div className="overflow-x-auto rounded-lg border border-gray-200">
-                        <table className="w-full border-collapse min-w-[480px]">
-                          <thead>
-                            <tr>
-                              <th className={`${TH} w-20`}>구분</th>
-                              <th className={TH}>이번주 실적</th>
-                              <th className={TH}>다음주 계획</th>
-                              <th className={`${TH} w-24`}>비고</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {ACTIVITY_LABELS.map((label, i) => {
-                              const row = r.content.activity_rows[i] ?? { current_week: '', next_week: '', note: '' }
-                              return (
-                                <tr key={label}>
-                                  <td className={`${TH} font-medium`}>{label}</td>
-                                  <td className={`${TD} whitespace-pre-wrap align-top`}>{row.current_week || '—'}</td>
-                                  <td className={`${TD} whitespace-pre-wrap align-top`}>{row.next_week || '—'}</td>
-                                  <td className={TD}>{row.note || '—'}</td>
-                                </tr>
-                              )
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    </section>
-                  </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
-      )}
-    </div>
-  )
-}
 
 // ─────────────────────────────────────────────────
 // 구버전(v1) fallback
 // ─────────────────────────────────────────────────
-function LegacyDetail({ content, type }: { content: Record<string, unknown>; type: 'weekly' | 'monthly' }) {
-  if (type === 'weekly') {
-    return (
-      <div className="space-y-4 text-sm text-gray-700">
-        {!!content.completed && <div><p className="text-xs font-semibold text-gray-400 mb-1">완료 업무</p><p className="whitespace-pre-wrap bg-gray-50 rounded-xl px-4 py-3">{String(content.completed)}</p></div>}
-        {!!content.next_plan && <div><p className="text-xs font-semibold text-gray-400 mb-1">다음주 계획</p><p className="whitespace-pre-wrap bg-gray-50 rounded-xl px-4 py-3">{String(content.next_plan)}</p></div>}
-        {!!content.issues && <div><p className="text-xs font-semibold text-gray-400 mb-1">이슈</p><p className="whitespace-pre-wrap bg-gray-50 rounded-xl px-4 py-3">{String(content.issues)}</p></div>}
-      </div>
-    )
-  }
+function LegacyDetail({ content, type }: { content: Record<string, unknown>; type: string }) {
+  void type
   return (
     <div className="space-y-4 text-sm text-gray-700">
-      {!!content.achievements && <div><p className="text-xs font-semibold text-gray-400 mb-1">주요 성과</p><p className="whitespace-pre-wrap bg-gray-50 rounded-xl px-4 py-3">{String(content.achievements)}</p></div>}
-      {!!content.next_month_plan && <div><p className="text-xs font-semibold text-gray-400 mb-1">다음 달 목표</p><p className="whitespace-pre-wrap bg-gray-50 rounded-xl px-4 py-3">{String(content.next_month_plan)}</p></div>}
+      {!!content.completed && <div><p className="text-xs font-semibold text-gray-400 mb-1">완료 업무</p><p className="whitespace-pre-wrap bg-gray-50 rounded-xl px-4 py-3">{String(content.completed)}</p></div>}
+      {!!content.next_plan && <div><p className="text-xs font-semibold text-gray-400 mb-1">다음주 계획</p><p className="whitespace-pre-wrap bg-gray-50 rounded-xl px-4 py-3">{String(content.next_plan)}</p></div>}
+      {!!content.issues && <div><p className="text-xs font-semibold text-gray-400 mb-1">이슈</p><p className="whitespace-pre-wrap bg-gray-50 rounded-xl px-4 py-3">{String(content.issues)}</p></div>}
     </div>
   )
 }
@@ -564,8 +311,8 @@ export default function ReportDetail({
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${report.type === 'weekly' ? 'bg-blue-50 text-blue-600' : 'bg-purple-50 text-purple-600'}`}>
-                {report.type === 'weekly' ? '주간' : '월간'}
+              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-blue-50 text-blue-600">
+                주간
               </span>
               <p className="text-base font-semibold text-gray-900">{report.period_label}</p>
             </div>
@@ -608,17 +355,10 @@ export default function ReportDetail({
       {/* 보고서 내용 */}
       <div className="bg-white border border-gray-200 rounded-xl p-5 mb-4">
         {isV2
-          ? report.type === 'weekly'
-            ? <WeeklyDetail content={report.content as WeeklyContent} />
-            : <MonthlyDetail content={report.content as MonthlyContent} />
+          ? <WeeklyDetail content={report.content as WeeklyContent} />
           : <LegacyDetail content={content} type={report.type} />
         }
       </div>
-
-      {/* 기관 주간보고 (월간보고 조회 시) */}
-      {report.type === 'monthly' && (
-        <OrgWeeklySection periodStart={report.period_start} />
-      )}
 
       {/* 첨부파일 */}
       {attachments.length > 0 && (

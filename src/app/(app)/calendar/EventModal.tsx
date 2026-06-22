@@ -150,6 +150,7 @@ interface Props {
   isAdmin?: boolean
   organizations?: string[]
   onSave: (data: Partial<CalendarEvent> | Partial<CalendarEvent>[]) => Promise<void>
+  onSaveFuture?: (data: Partial<CalendarEvent>) => Promise<void>
   onDelete?: () => Promise<void>
   onDeleteAll?: () => Promise<void>
   onClose: () => void
@@ -165,6 +166,7 @@ export default function EventModal({
   isAdmin = false,
   organizations,
   onSave,
+  onSaveFuture,
   onDelete,
   onDeleteAll,
   onClose,
@@ -206,6 +208,8 @@ export default function EventModal({
   const [saving,             setSaving]             = useState(false)
   const [deleting,           setDeleting]           = useState(false)
   const [showDeleteConfirm,  setShowDeleteConfirm]  = useState(false)
+  const [showSaveScope,      setShowSaveScope]      = useState(false)
+  const [pendingSaveData,    setPendingSaveData]    = useState<Partial<CalendarEvent> | null>(null)
   const [error,              setError]              = useState('')
 
 
@@ -246,6 +250,18 @@ export default function EventModal({
       }
     }
 
+    // 반복 일정 편집 시 수정 범위 선택 다이얼로그
+    if (isEdit && event?.repeat_group_id && onSaveFuture) {
+      const base: Partial<CalendarEvent> = {
+        title: title.trim(), description: description.trim(),
+        is_allday: isAllday, color, is_public: isPublic,
+        ...(isAdmin && selectedOrg ? { organization: selectedOrg } : {}),
+      }
+      setPendingSaveData({ ...base, start_at: firstStart, end_at: firstEnd })
+      setShowSaveScope(true)
+      return
+    }
+
     setSaving(true); setError('')
     try {
       const base: Partial<CalendarEvent> = {
@@ -282,6 +298,25 @@ export default function EventModal({
     if (!onDeleteAll) return
     setDeleting(true)
     try { await onDeleteAll() } catch { setError('삭제 중 오류가 발생했습니다.') } finally { setDeleting(false) }
+  }
+
+  const executeSave = async (scope: 'single' | 'future') => {
+    if (!pendingSaveData) return
+    setShowSaveScope(false)
+    setSaving(true)
+    setError('')
+    try {
+      if (scope === 'single') {
+        await onSave(pendingSaveData)
+      } else {
+        await onSaveFuture!(pendingSaveData)
+      }
+    } catch {
+      setError('저장 중 오류가 발생했습니다.')
+    } finally {
+      setSaving(false)
+      setPendingSaveData(null)
+    }
   }
 
   const handleDeleteClick = () => {
@@ -515,12 +550,12 @@ export default function EventModal({
             />
           </div>
 
-          {/* 전체 공개 (주관기관만) */}
+          {/* 항상 표시 (관리자만) */}
           {canEdit && canPublish && (
             <div className="flex items-center justify-between bg-blue-50 px-3 py-2.5 rounded-lg">
               <div>
-                <p className="text-xs font-medium text-blue-900">전체 공개</p>
-                <p className="text-xs text-blue-600 mt-0.5">모든 기관 사용자에게 표시됩니다</p>
+                <p className="text-xs font-medium text-blue-900">항상 표시</p>
+                <p className="text-xs text-blue-600 mt-0.5">기관 필터 선택 시에도 항상 표시됩니다</p>
               </div>
               <button
                 type="button"
@@ -566,6 +601,37 @@ export default function EventModal({
         </div>
       </div>
     </div>
+
+    {showSaveScope && pendingSaveData && (
+      <div className="fixed inset-0 z-[60] flex items-center justify-center bg-gray-900/50 px-4">
+        <div className="bg-white rounded-2xl shadow-2xl p-5 w-full max-w-xs">
+          <p className="text-sm font-semibold text-gray-900 mb-1">일정 수정 범위</p>
+          <p className="text-xs text-gray-500 mb-4">반복 일정 중 어떤 범위를 수정하시겠습니까?</p>
+          <div className="space-y-2">
+            <button
+              onClick={() => executeSave('future')}
+              disabled={saving}
+              className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-xl disabled:opacity-50 transition"
+            >
+              이 일정 및 이후 일정 수정
+            </button>
+            <button
+              onClick={() => executeSave('single')}
+              disabled={saving}
+              className="w-full py-2.5 border border-blue-200 text-blue-600 text-sm font-medium rounded-xl hover:bg-blue-50 disabled:opacity-50 transition"
+            >
+              이 일정만 수정
+            </button>
+            <button
+              onClick={() => { setShowSaveScope(false); setPendingSaveData(null) }}
+              className="w-full py-2.5 border border-gray-300 text-gray-600 text-sm font-medium rounded-xl hover:bg-gray-50 transition"
+            >
+              취소
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
 
     {showDeleteConfirm && (
       <div className="fixed inset-0 z-[60] flex items-center justify-center bg-gray-900/50 px-4">

@@ -2,7 +2,7 @@
 // 보고서 양식 v2 공유 타입
 // ─────────────────────────────────────────────────
 
-export type ReportType = 'weekly' | 'monthly'
+export type ReportType = 'weekly'
 export type ReportMode = 'create' | 'edit' | 'resubmit'
 export type ReportStatus = 'draft' | 'submitted' | 'approved' | 'revision_requested' | 'resubmitted' | 'revision_approved'
 
@@ -37,20 +37,6 @@ export interface ActivityRow {
   note: string         // 비고
 }
 
-export interface WeeklyContent {
-  version: 2
-  org_info: OrgInfo
-  kpi_rows: KpiRow[]           // KPI_LABELS 순서와 동일, 길이 6
-  activity_rows: ActivityRow[] // ACTIVITY_LABELS 순서와 동일, 길이 3
-}
-
-// ── 월간 보고서 ──
-
-export interface PerfEntry {
-  target: string // 목표(A)
-  actual: string // 실적(B)
-}
-
 export interface BudgetEntry {
   budget: string   // 예산
   executed: string // 집행액
@@ -61,20 +47,13 @@ export interface MonthlyBudget {
   operator_self: BudgetEntry // 자기부담금
 }
 
-export interface QualitativeEntry {
-  target: string   // 정성 목표 (텍스트)
-  actual: string   // 정성 실적 (텍스트)
-  rate: string     // 달성률 (수동 입력, 예: '85%')
-}
-
-export interface MonthlyContent {
+export interface WeeklyContent {
   version: 2
   org_info: OrgInfo
-  kpi_rows: KpiRow[]            // 정량실적 (KPI_LABELS 기준)
-  qualitative: QualitativeEntry  // 정성실적
-  achievement_plan: string
-  budget: MonthlyBudget
-  budget_plan: string
+  kpi_rows: KpiRow[]           // KPI_LABELS 순서와 동일, 길이 6
+  activity_rows: ActivityRow[] // ACTIVITY_LABELS 순서와 동일, 길이 3
+  budget: MonthlyBudget        // 예산 집행현황
+  budget_plan: string          // 향후예산 활용계획
 }
 
 // ── 유틸 함수 ──
@@ -113,6 +92,8 @@ export function calcBudgetSubtotal(a: BudgetEntry, b: BudgetEntry) {
   return { budget: ab, executed: ae, remaining, rate }
 }
 
+const emptyBudget: BudgetEntry = { budget: '', executed: '' }
+
 /** 기본 WeeklyContent 생성 */
 export function defaultWeekly(org: string): WeeklyContent {
   return {
@@ -120,18 +101,6 @@ export function defaultWeekly(org: string): WeeklyContent {
     org_info: { operator: org },
     kpi_rows: KPI_LABELS.map(() => ({ target: '', actual: '' })),
     activity_rows: ACTIVITY_LABELS.map(() => ({ current_week: '', next_week: '', note: '' })),
-  }
-}
-
-/** 기본 MonthlyContent 생성 */
-export function defaultMonthly(org: string): MonthlyContent {
-  const emptyBudget: BudgetEntry = { budget: '', executed: '' }
-  return {
-    version: 2,
-    org_info: { operator: org },
-    kpi_rows: KPI_LABELS.map(() => ({ target: '', actual: '' })),
-    qualitative: { target: '', actual: '', rate: '' },
-    achievement_plan: '',
     budget: {
       operator_gov:  { ...emptyBudget },
       operator_self: { ...emptyBudget },

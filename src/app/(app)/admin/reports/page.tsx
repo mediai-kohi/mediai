@@ -56,13 +56,6 @@ function getWeeksInMonth(year: number, month: number): { start: string; label: s
   return result
 }
 
-function getMonthPeriods(year: number): { start: string; label: string }[] {
-  return Array.from({ length: 12 }, (_, i) => {
-    const m = i + 1
-    return { start: `${year}-${String(m).padStart(2, '0')}-01`, label: `${year}년 ${m}월` }
-  })
-}
-
 function formatDate(d: string | null) {
   if (!d) return '-'
   return new Date(d).toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit' })
@@ -97,7 +90,6 @@ export default function AdminReportsPage() {
   const [reports, setReports] = useState<Report[]>([])
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState('all')
-  const [typeFilter, setTypeFilter] = useState('all')
   const [orgFilter, setOrgFilter] = useState('all')
   const [orgs, setOrgs] = useState<string[]>([])
 
@@ -113,7 +105,7 @@ export default function AdminReportsPage() {
   const dropdownRef = useRef<HTMLDivElement | null>(null)
 
   // AI 분석 탭 상태
-  const [sumType, setSumType] = useState<'weekly' | 'monthly'>('weekly')
+  const sumType = 'weekly'
   const [sumYear, setSumYear] = useState(2026)
   const [sumMonth, setSumMonth] = useState(new Date().getMonth() + 1)
   const [sumPeriod, setSumPeriod] = useState<{ label: string; start: string } | null>(null)
@@ -186,12 +178,12 @@ export default function AdminReportsPage() {
   // 목록 탭
   const fetchReports = useCallback(async () => {
     setLoading(true)
-    const p = new URLSearchParams({ status: statusFilter, type: typeFilter, organization: orgFilter })
+    const p = new URLSearchParams({ status: statusFilter, type: 'weekly', organization: orgFilter })
     const res = await fetch(`/api/admin/reports?${p}`)
     const data = await res.json()
     setReports(Array.isArray(data) ? data : [])
     setLoading(false)
-  }, [statusFilter, typeFilter, orgFilter])
+  }, [statusFilter, orgFilter])
 
   useEffect(() => { if (tab === 'list') fetchReports() }, [tab, fetchReports])
 
@@ -457,12 +449,6 @@ export default function AdminReportsPage() {
               <option value="resubmitted">재제출</option>
               <option value="draft">임시저장</option>
             </select>
-            <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)}
-              className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-              <option value="all">전체 유형</option>
-              <option value="weekly">주간</option>
-              <option value="monthly">월간</option>
-            </select>
             <select value={orgFilter} onChange={e => setOrgFilter(e.target.value)}
               className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
               <option value="all">전체 기관</option>
@@ -494,8 +480,8 @@ export default function AdminReportsPage() {
                       <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{r.organization}</td>
                       <td className="px-4 py-3 text-gray-900 whitespace-nowrap">{r.author?.user_code ?? '-'}</td>
                       <td className="px-4 py-3 whitespace-nowrap">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${r.type === 'weekly' ? 'bg-blue-50 text-blue-600' : 'bg-purple-50 text-purple-600'}`}>
-                          {r.type === 'weekly' ? '주간' : '월간'}
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-blue-50 text-blue-600">
+                          주간
                         </span>
                       </td>
                       <td className="px-4 py-3">
@@ -575,8 +561,8 @@ export default function AdminReportsPage() {
               <div className="flex items-start justify-between gap-3 flex-wrap">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap mb-1">
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${r.type === 'weekly' ? 'bg-blue-50 text-blue-600' : 'bg-purple-50 text-purple-600'}`}>
-                      {r.type === 'weekly' ? '주간' : '월간'}
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-blue-50 text-blue-600">
+                      주간
                     </span>
                     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_BADGE[r.status] ?? 'bg-gray-100 text-gray-600'}`}>
                       {STATUS_LABEL[r.status] ?? r.status}
@@ -615,20 +601,6 @@ export default function AdminReportsPage() {
           <div className="bg-white border border-gray-200 rounded-xl p-5 mb-4 max-w-2xl">
             <h2 className="text-sm font-semibold text-gray-900 mb-4">분석 조건 설정</h2>
             <div className="space-y-3">
-              {/* 유형 선택 */}
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1.5">리포트 유형</label>
-                <div className="flex gap-2">
-                  {(['weekly', 'monthly'] as const).map(t => (
-                    <button key={t} type="button"
-                      onClick={() => { setSumType(t); setSumPeriod(null) }}
-                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${sumType === t ? 'bg-blue-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
-                      {t === 'weekly' ? '주간' : '월간'}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
               {/* 년도/월 선택 */}
               <div className="flex gap-2 flex-wrap">
                 <div>
@@ -638,20 +610,18 @@ export default function AdminReportsPage() {
                     {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}년</option>)}
                   </select>
                 </div>
-                {sumType === 'weekly' && (
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1.5">월</label>
-                    <select value={sumMonth} onChange={e => { setSumMonth(Number(e.target.value)); setSumPeriod(null) }}
-                      className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                      {Array.from({ length: 12 }, (_, i) => i + 1).map(m => <option key={m} value={m}>{m}월</option>)}
-                    </select>
-                  </div>
-                )}
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1.5">월</label>
+                  <select value={sumMonth} onChange={e => { setSumMonth(Number(e.target.value)); setSumPeriod(null) }}
+                    className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    {Array.from({ length: 12 }, (_, i) => i + 1).map(m => <option key={m} value={m}>{m}월</option>)}
+                  </select>
+                </div>
               </div>
 
               {/* 기간 선택 */}
               {(() => {
-                const available = sumType === 'weekly' ? getWeeksInMonth(sumYear, sumMonth) : getMonthPeriods(sumYear)
+                const available = getWeeksInMonth(sumYear, sumMonth)
                 return (
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-1.5">기간 선택</label>

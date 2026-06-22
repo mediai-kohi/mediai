@@ -1,14 +1,14 @@
 import * as XLSX from 'xlsx'
 import {
-  WeeklyContent, MonthlyContent,
+  WeeklyContent,
   KPI_LABELS, ACTIVITY_LABELS,
   calcRate, calcBudgetRow, calcBudgetSubtotal, fmtNum,
 } from '@/app/(app)/reports/report-types'
 
 export interface ReportDownloadData {
-  type: 'weekly' | 'monthly'
+  type: string
   period_label: string
-  content: WeeklyContent | MonthlyContent
+  content: WeeklyContent
   organization: string
 }
 
@@ -18,21 +18,24 @@ export interface ReportDownloadData {
 
 export function downloadReportExcel(report: ReportDownloadData) {
   const wb = XLSX.utils.book_new()
-  const rows = report.type === 'weekly'
-    ? buildWeeklyRows(report)
-    : buildMonthlyRows(report)
-
+  const rows = buildWeeklyRows(report)
   const ws = XLSX.utils.aoa_to_sheet(rows)
   ws['!cols'] = [{ wch: 22 }, { wch: 28 }, { wch: 28 }, { wch: 18 }, { wch: 14 }]
-
-  XLSX.utils.book_append_sheet(wb, ws, report.type === 'weekly' ? '주간보고서' : '월간보고서')
-
+  XLSX.utils.book_append_sheet(wb, ws, '주간보고서')
   const safe = report.period_label.replace(/[/\\:*?"<>|]/g, '_')
   XLSX.writeFile(wb, `${report.organization}_${safe}.xlsx`)
 }
 
 function buildWeeklyRows(report: ReportDownloadData): (string | number)[][] {
-  const wc = report.content as WeeklyContent
+  const wc = report.content
+  const safeBudget = wc.budget ?? {
+    operator_gov: { budget: '', executed: '' },
+    operator_self: { budget: '', executed: '' },
+  }
+  const opGov  = calcBudgetRow(safeBudget.operator_gov)
+  const opSelf = calcBudgetRow(safeBudget.operator_self)
+  const total  = calcBudgetSubtotal(safeBudget.operator_gov, safeBudget.operator_self)
+
   const rows: (string | number)[][] = []
 
   rows.push(['주간 실적보고서'])
@@ -58,60 +61,19 @@ function buildWeeklyRows(report: ReportDownloadData): (string | number)[][] {
     const row = wc.activity_rows[i] ?? { current_week: '', next_week: '', note: '' }
     rows.push([label, row.current_week || '—', row.next_week || '—', row.note || '—'])
   })
-
-  return rows
-}
-
-function buildMonthlyRows(report: ReportDownloadData): (string | number)[][] {
-  const mc = report.content as MonthlyContent
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const c = mc as any
-  const kpi_rows: { target: string; actual: string }[] = Array.isArray(c.kpi_rows) ? c.kpi_rows : []
-  const qual: { target?: string; actual?: string; rate?: string } = c.qualitative ?? {}
-
-  const opGov  = calcBudgetRow(mc.budget.operator_gov)
-  const opSelf = calcBudgetRow(mc.budget.operator_self)
-  const total  = calcBudgetSubtotal(mc.budget.operator_gov, mc.budget.operator_self)
-
-  const rows: (string | number)[][] = []
-
-  rows.push(['월간 실적보고서'])
-  rows.push([report.period_label])
-  rows.push(['기관명', report.organization])
   rows.push([])
 
-  rows.push(['1. 수행기관 정보'])
-  rows.push(['기관명', mc.org_info.operator])
-  rows.push([])
-
-  rows.push(['2. 정량 및 정성 실적'])
-  rows.push(['[정량실적]'])
-  rows.push(['지표명', '연간목표(A)', '누적실적(B)', '달성률(B/A)'])
-  KPI_LABELS.forEach((label, i) => {
-    const row = kpi_rows[i] ?? { target: '', actual: '' }
-    rows.push([label, fmtNum(row.target) || '—', fmtNum(row.actual) || '—', calcRate(row.target, row.actual)])
-  })
-  rows.push([])
-
-  rows.push(['[정성실적]'])
-  rows.push(['목표', '실적', '달성률'])
-  rows.push([qual.target || '—', qual.actual || '—', qual.rate || '—'])
-  rows.push([])
-
-  rows.push(['향후목표 달성계획', mc.achievement_plan || '—'])
-  rows.push([])
-
-  rows.push(['3. 예산 집행현황'])
+  rows.push(['4. 예산 집행현황'])
   rows.push(['구분', '예산', '집행액', '집행잔액', '집행률'])
   rows.push(['국고보조금',
-    fmtNum(mc.budget.operator_gov.budget) || '—',
-    fmtNum(mc.budget.operator_gov.executed) || '—',
+    fmtNum(safeBudget.operator_gov.budget) || '—',
+    fmtNum(safeBudget.operator_gov.executed) || '—',
     opGov.budget ? opGov.remaining.toLocaleString('ko-KR') : '—',
     opGov.rate,
   ])
   rows.push(['자기부담금',
-    fmtNum(mc.budget.operator_self.budget) || '—',
-    fmtNum(mc.budget.operator_self.executed) || '—',
+    fmtNum(safeBudget.operator_self.budget) || '—',
+    fmtNum(safeBudget.operator_self.executed) || '—',
     opSelf.budget ? opSelf.remaining.toLocaleString('ko-KR') : '—',
     opSelf.rate,
   ])
@@ -121,8 +83,10 @@ function buildMonthlyRows(report: ReportDownloadData): (string | number)[][] {
     total.budget ? total.remaining.toLocaleString('ko-KR') : '—',
     total.rate,
   ])
-  rows.push([])
-  rows.push(['향후예산 활용계획', mc.budget_plan || '—'])
+  if (wc.budget_plan) {
+    rows.push([])
+    rows.push(['향후예산 활용계획', wc.budget_plan])
+  }
 
   return rows
 }
@@ -132,10 +96,7 @@ function buildMonthlyRows(report: ReportDownloadData): (string | number)[][] {
 // ─────────────────────────────────────────────────
 
 export function printReportPdf(report: ReportDownloadData) {
-  const html = report.type === 'weekly'
-    ? buildWeeklyHtml(report)
-    : buildMonthlyHtml(report)
-
+  const html = buildWeeklyHtml(report)
   const win = window.open('', '_blank')
   if (!win) return
   win.document.write(html)
@@ -153,7 +114,6 @@ const PRINT_CSS = `
   .subtitle { text-align: center; font-size: 10pt; color: #444; margin-bottom: 12px; }
   .meta { font-size: 9pt; color: #555; margin-bottom: 10px; }
   h2 { font-size: 10pt; font-weight: bold; border-bottom: 1.5px solid #333; padding-bottom: 2px; margin: 14px 0 5px; }
-  .sub-title { font-size: 9pt; font-weight: bold; color: #333; margin: 8px 0 3px; }
   table { width: 100%; border-collapse: collapse; font-size: 9pt; margin-bottom: 8px; }
   th, td { border: 1px solid #555; padding: 4px 6px; }
   th { background: #e8e8e8; font-weight: bold; text-align: center; }
@@ -169,7 +129,15 @@ function wrapHtml(title: string, body: string): string {
 }
 
 function buildWeeklyHtml(report: ReportDownloadData): string {
-  const wc = report.content as WeeklyContent
+  const wc = report.content
+  const safeBudget = wc.budget ?? {
+    operator_gov: { budget: '', executed: '' },
+    operator_self: { budget: '', executed: '' },
+  }
+  const opGov  = calcBudgetRow(safeBudget.operator_gov)
+  const opSelf = calcBudgetRow(safeBudget.operator_self)
+  const total  = calcBudgetSubtotal(safeBudget.operator_gov, safeBudget.operator_self)
+
   const kpiRows = KPI_LABELS.map((label, i) => {
     const row = wc.kpi_rows[i] ?? { target: '', actual: '' }
     const note = (row as { note?: string }).note || ''
@@ -192,17 +160,13 @@ function buildWeeklyHtml(report: ReportDownloadData): string {
     </tr>`
   }).join('')
 
-  const orgRows = [
-    `<tr><th style="width:120px">기관명</th><td>${esc(wc.org_info.operator)}</td></tr>`,
-  ].join('')
-
   const body = `
     <h1>주간 실적보고서</h1>
     <p class="subtitle">${esc(report.period_label)}</p>
     <p class="meta">기관명: ${esc(report.organization)}</p>
 
     <h2>1. 수행기관 정보</h2>
-    <table><tbody>${orgRows}</tbody></table>
+    <table><tbody><tr><th style="width:120px">기관명</th><td>${esc(wc.org_info.operator)}</td></tr></tbody></table>
 
     <h2>2. 성과지표 달성 현황</h2>
     <table>
@@ -215,77 +179,22 @@ function buildWeeklyHtml(report: ReportDownloadData): string {
       <thead><tr><th style="width:80px">구분</th><th>이번주 실적</th><th>다음주 계획</th><th style="width:90px">비고</th></tr></thead>
       <tbody>${actRows}</tbody>
     </table>
-  `
-  return wrapHtml('주간 실적보고서', body)
-}
 
-function buildMonthlyHtml(report: ReportDownloadData): string {
-  const mc = report.content as MonthlyContent
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const c = mc as any
-  const kpi_rows: { target: string; actual: string }[] = Array.isArray(c.kpi_rows) ? c.kpi_rows : []
-  const qual: { target?: string; actual?: string; rate?: string } = c.qualitative ?? {}
-
-  const opGov  = calcBudgetRow(mc.budget.operator_gov)
-  const opSelf = calcBudgetRow(mc.budget.operator_self)
-  const total  = calcBudgetSubtotal(mc.budget.operator_gov, mc.budget.operator_self)
-
-  const kpiRows = KPI_LABELS.map((label, i) => {
-    const row = kpi_rows[i] ?? { target: '', actual: '' }
-    return `<tr>
-      <td>${label}</td>
-      <td class="text-center">${fmtNum(row.target) || '—'}</td>
-      <td class="text-center">${fmtNum(row.actual) || '—'}</td>
-      <td class="text-center">${calcRate(row.target, row.actual)}</td>
-    </tr>`
-  }).join('')
-
-  const orgRows = [
-    `<tr><th style="width:100px">기관명</th><td colspan="3">${esc(mc.org_info.operator)}</td></tr>`,
-  ].join('')
-
-  const body = `
-    <h1>월간 실적보고서</h1>
-    <p class="subtitle">${esc(report.period_label)}</p>
-    <p class="meta">기관명: ${esc(report.organization)}</p>
-
-    <h2>1. 수행기관 정보</h2>
-    <table><tbody>${orgRows}</tbody></table>
-
-    <h2>2. 정량 및 정성 실적</h2>
-    <p class="sub-title">정량실적</p>
-    <table>
-      <thead><tr><th style="width:130px">지표명</th><th>연간목표(A)</th><th>누적실적(B)</th><th>달성률(B/A)</th></tr></thead>
-      <tbody>${kpiRows}</tbody>
-    </table>
-
-    <p class="sub-title">정성실적</p>
-    <table>
-      <thead><tr><th>목표</th><th>실적</th><th style="width:80px">달성률</th></tr></thead>
-      <tbody><tr>
-        <td class="pre">${esc(qual.target || '—')}</td>
-        <td class="pre">${esc(qual.actual || '—')}</td>
-        <td class="text-center">${esc(qual.rate || '—')}</td>
-      </tr></tbody>
-    </table>
-
-    ${mc.achievement_plan ? `<div class="plan-label">향후목표 달성계획</div><div class="plan-box">${esc(mc.achievement_plan)}</div>` : ''}
-
-    <h2>3. 예산 집행현황</h2>
+    <h2>4. 예산 집행현황</h2>
     <table>
       <thead><tr><th style="width:100px">구분</th><th>예산</th><th>집행액</th><th>집행잔액</th><th style="width:60px">집행률</th></tr></thead>
       <tbody>
         <tr>
           <th>국고보조금</th>
-          <td class="text-right">${fmtNum(mc.budget.operator_gov.budget) || '—'}</td>
-          <td class="text-right">${fmtNum(mc.budget.operator_gov.executed) || '—'}</td>
+          <td class="text-right">${fmtNum(safeBudget.operator_gov.budget) || '—'}</td>
+          <td class="text-right">${fmtNum(safeBudget.operator_gov.executed) || '—'}</td>
           <td class="text-right">${opGov.budget ? opGov.remaining.toLocaleString('ko-KR') : '—'}</td>
           <td class="text-center">${opGov.rate}</td>
         </tr>
         <tr>
           <th>자기부담금</th>
-          <td class="text-right">${fmtNum(mc.budget.operator_self.budget) || '—'}</td>
-          <td class="text-right">${fmtNum(mc.budget.operator_self.executed) || '—'}</td>
+          <td class="text-right">${fmtNum(safeBudget.operator_self.budget) || '—'}</td>
+          <td class="text-right">${fmtNum(safeBudget.operator_self.executed) || '—'}</td>
           <td class="text-right">${opSelf.budget ? opSelf.remaining.toLocaleString('ko-KR') : '—'}</td>
           <td class="text-center">${opSelf.rate}</td>
         </tr>
@@ -298,10 +207,9 @@ function buildMonthlyHtml(report: ReportDownloadData): string {
         </tr>
       </tbody>
     </table>
-
-    ${mc.budget_plan ? `<div class="plan-label">향후예산 활용계획</div><div class="plan-box">${esc(mc.budget_plan)}</div>` : ''}
+    ${wc.budget_plan ? `<div class="plan-label">향후예산 활용계획</div><div class="plan-box">${esc(wc.budget_plan)}</div>` : ''}
   `
-  return wrapHtml('월간 실적보고서', body)
+  return wrapHtml('주간 실적보고서', body)
 }
 
 function esc(s: string): string {

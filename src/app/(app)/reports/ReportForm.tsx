@@ -16,13 +16,12 @@ function formatSize(bytes: number) {
 import { useRouter } from 'next/navigation'
 import ReportPreviewModal from './ReportPreviewModal'
 import {
-  ReportType, ReportMode,
-  WeeklyContent, MonthlyContent,
+  ReportMode,
+  WeeklyContent,
   KPI_LABELS, ACTIVITY_LABELS,
   calcRate, calcBudgetRow, calcBudgetSubtotal, fmtNum,
-  defaultWeekly, defaultMonthly,
+  defaultWeekly,
 } from './report-types'
-// calcBudgetSubtotal은 예산 합계 계산에 사용
 
 // ─────────────────────────────────────────────────
 // 날짜 유틸
@@ -59,7 +58,6 @@ function calcWeeklyPeriod(weeklyDate: string) {
 /** 해당 연월에 속하는 주(월요일이 해당 월인 주만) 목록 반환 */
 function getWeeksInMonth(year: number, month: number): { value: string; label: string }[] {
   const result: { value: string; label: string }[] = []
-  // 해당 월의 첫 월요일 찾기
   let monday = new Date(year, month - 1, 1)
   while (monday.getDay() !== 1) {
     monday.setDate(monday.getDate() + 1)
@@ -75,15 +73,6 @@ function getWeeksInMonth(year: number, month: number): { value: string; label: s
     monday.setDate(monday.getDate() + 7)
   }
   return result
-}
-
-function calcMonthlyPeriod(year: number, month: number) {
-  const lastDay = new Date(year, month, 0)
-  return {
-    period_label: `${year}년 ${month}월 (${month}.1.~${month}.${lastDay.getDate()}.)`,
-    period_start: `${year}-${String(month).padStart(2, '0')}-01`,
-    period_end:   toDateStr(lastDay),
-  }
 }
 
 function getWeekHeaders(monday: Date) {
@@ -342,6 +331,17 @@ function WeeklyFormBody({
         next_week: r.next_week || (prev.activity_rows[i]?.next_week ?? ''),
         note: r.note || (prev.activity_rows[i]?.note ?? ''),
       })),
+      budget: {
+        operator_gov: {
+          budget: value.budget.operator_gov.budget || prev.budget?.operator_gov?.budget || '',
+          executed: value.budget.operator_gov.executed,
+        },
+        operator_self: {
+          budget: value.budget.operator_self.budget || prev.budget?.operator_self?.budget || '',
+          executed: value.budget.operator_self.executed,
+        },
+      },
+      budget_plan: value.budget_plan || prev.budget_plan || '',
     })
     setAutoFillMsg('이전 주간보고 내용을 불러왔습니다.')
     setTimeout(() => setAutoFillMsg(''), 6000)
@@ -351,18 +351,23 @@ function WeeklyFormBody({
   const monday = getMondayOfWeek(new Date(weeklyDate + 'T00:00:00'))
   const { thisWeek, nextWeek } = getWeekHeaders(monday)
 
-  const setOrgInfo = (patch: Partial<WeeklyContent['org_info']>) =>
-    onChange({ ...value, org_info: { ...value.org_info, ...patch } })
-
   const setKpi = (i: number, patch: Partial<typeof value.kpi_rows[0]>) =>
     onChange({ ...value, kpi_rows: value.kpi_rows.map((r, idx) => idx === i ? { ...r, ...patch } : r) })
 
   const setActivity = (i: number, patch: Partial<typeof value.activity_rows[0]>) =>
     onChange({ ...value, activity_rows: value.activity_rows.map((r, idx) => idx === i ? { ...r, ...patch } : r) })
 
+  const setBudget = (key: keyof typeof value.budget, patch: Partial<typeof value.budget.operator_gov>) =>
+    onChange({ ...value, budget: { ...value.budget, [key]: { ...value.budget[key], ...patch } } })
+
+  const opGov  = calcBudgetRow(value.budget.operator_gov)
+  const opSelf = calcBudgetRow(value.budget.operator_self)
+  const total  = calcBudgetSubtotal(value.budget.operator_gov, value.budget.operator_self)
+
   const inputCls = 'w-full px-2 py-1.5 border border-gray-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white'
   const readonlyCls = 'w-full px-2 py-1.5 bg-gray-50 border border-gray-100 rounded text-xs text-gray-600 cursor-default'
   const numCls = 'w-full px-2 py-1.5 border border-gray-200 rounded text-xs text-center focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white tabular-nums'
+  const autoNumCls = 'w-full px-2 py-1.5 bg-gray-50 text-xs text-center tabular-nums text-gray-600 cursor-default'
   const textareaCls = 'w-full px-3 py-2 border border-gray-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white resize-none leading-relaxed'
 
   return (
@@ -560,444 +565,9 @@ function WeeklyFormBody({
           </table>
         </div>
       </SectionCard>
-    </div>
-  )
-}
 
-// ─────────────────────────────────────────────────
-// OrgWeeklyReports: 월간보고 내 기관 주간보고 현황
-// ─────────────────────────────────────────────────
-const STATUS_LABELS: Record<string, { text: string; color: string }> = {
-  submitted:          { text: '제출됨',   color: 'bg-blue-100 text-blue-700' },
-  approved:           { text: '승인됨',   color: 'bg-green-100 text-green-700' },
-  revision_requested: { text: '수정요청', color: 'bg-red-100 text-red-700' },
-  resubmitted:        { text: '재제출됨', color: 'bg-purple-100 text-purple-700' },
-  revision_approved:  { text: '재승인됨', color: 'bg-teal-100 text-teal-700' },
-}
-
-interface OrgReport {
-  id: string
-  period_label: string
-  period_start: string
-  status: string
-  content: WeeklyContent
-  author: { user_code: string; organization: string } | null
-}
-
-function OrgWeeklyReports({ year, month }: { year: number; month: number }) {
-  const [reports, setReports] = useState<OrgReport[]>([])
-  const [loading, setLoading] = useState(false)
-  const [open, setOpen] = useState(true)
-  const [expandedId, setExpandedId] = useState<string | null>(null)
-
-  useEffect(() => {
-    setLoading(true)
-    fetch(`/api/reports/org?year=${year}&month=${month}`)
-      .then(r => r.ok ? r.json() : [])
-      .then(data => { setReports(Array.isArray(data) ? data : []); setLoading(false) })
-      .catch(() => { setReports([]); setLoading(false) })
-  }, [year, month])
-
-  const st = (s: string) => STATUS_LABELS[s] ?? { text: s, color: 'bg-gray-100 text-gray-600' }
-
-  return (
-    <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-      <button
-        type="button"
-        onClick={() => setOpen(p => !p)}
-        className="w-full flex items-center justify-between bg-gray-50 border-b border-gray-200 px-4 py-2.5 text-left"
-      >
-        <p className="text-xs font-semibold text-gray-700">
-          이번 달 기관 주간 리포트 현황
-          {!loading && <span className="ml-1.5 text-gray-400 font-normal">({reports.length}건)</span>}
-        </p>
-        <svg className={`w-4 h-4 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
-        </svg>
-      </button>
-
-      {open && (
-        <div className="p-4">
-          {loading ? (
-            <p className="text-xs text-gray-400 text-center py-3">불러오는 중...</p>
-          ) : reports.length === 0 ? (
-            <p className="text-xs text-gray-400 text-center py-3">이번 달 제출된 주간 리포트가 없습니다.</p>
-          ) : (
-            <div className="space-y-1.5">
-              {reports.map(r => (
-                <div key={r.id} className="border border-gray-200 rounded-lg overflow-hidden">
-                  <button
-                    type="button"
-                    onClick={() => setExpandedId(expandedId === r.id ? null : r.id)}
-                    className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-gray-50 transition-colors"
-                  >
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="text-xs text-gray-800 font-medium truncate">{r.period_label}</span>
-                      {(r.author?.user_code || r.author?.organization) && (
-                        <span className="text-xs text-gray-500 flex-shrink-0">{r.author?.user_code ?? r.author?.organization ?? '-'}</span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2 flex-shrink-0 ml-2">
-                      <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${st(r.status).color}`}>
-                        {st(r.status).text}
-                      </span>
-                      <svg className={`w-3.5 h-3.5 text-gray-400 transition-transform ${expandedId === r.id ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
-                      </svg>
-                    </div>
-                  </button>
-
-                  {expandedId === r.id && r.content?.version === 2 && (
-                    <div className="border-t border-gray-100 px-3 py-3 bg-gray-50 space-y-3">
-                      {/* KPI 요약 */}
-                      <div>
-                        <p className="text-[10px] font-semibold text-gray-500 mb-1">성과지표 달성 현황</p>
-                        <table className="w-full border-collapse text-[10px]">
-                          <thead>
-                            <tr>
-                              <th className="border border-gray-300 bg-gray-100 px-1.5 py-1 text-left font-semibold text-gray-600">지표명</th>
-                              <th className="border border-gray-300 bg-gray-100 px-1.5 py-1 text-center font-semibold text-gray-600 w-16">목표</th>
-                              <th className="border border-gray-300 bg-gray-100 px-1.5 py-1 text-center font-semibold text-gray-600 w-16">실적</th>
-                              <th className="border border-gray-300 bg-gray-100 px-1.5 py-1 text-center font-semibold text-gray-600 w-14">달성률</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {KPI_LABELS.map((label, i) => {
-                              const row = r.content.kpi_rows[i] ?? { target: '', actual: '' }
-                              const isManpower = label === '전문인력 양성(명)'
-                              const actualSub = (row as { actual_sub?: string }).actual_sub
-                              return (
-                                <tr key={label}>
-                                  <td className="border border-gray-300 px-1.5 py-1 text-gray-700">{label}</td>
-                                  <td className="border border-gray-300 px-1.5 py-1 text-center tabular-nums text-gray-700">{fmtNum(row.target) || '—'}</td>
-                                  <td className="border border-gray-300 px-1.5 py-1 text-center tabular-nums text-gray-700">
-                                    {isManpower ? (
-                                      <div className="text-left space-y-0.5">
-                                        <div>수료: {fmtNum(row.actual) || '—'}</div>
-                                        <div>교육중: {fmtNum(actualSub ?? '') || '—'}</div>
-                                      </div>
-                                    ) : (fmtNum(row.actual) || '—')}
-                                  </td>
-                                  <td className="border border-gray-300 px-1.5 py-1 text-center text-blue-600 font-medium">{calcRate(row.target, row.actual)}</td>
-                                </tr>
-                              )
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                      {/* 활동 요약 */}
-                      <div>
-                        <p className="text-[10px] font-semibold text-gray-500 mb-1">주간 실적 및 계획</p>
-                        <div className="space-y-1.5">
-                          {ACTIVITY_LABELS.map((label, i) => {
-                            const row = r.content.activity_rows[i] ?? { current_week: '', next_week: '', note: '' }
-                            if (!row.current_week && !row.next_week) return null
-                            return (
-                              <div key={label} className="text-[10px]">
-                                <span className="font-semibold text-gray-600">{label}:&nbsp;</span>
-                                {row.current_week && <span className="text-gray-700">{row.current_week}</span>}
-                              </div>
-                            )
-                          })}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ─────────────────────────────────────────────────
-// MonthlyFormBody
-// ─────────────────────────────────────────────────
-function MonthlyFormBody({
-  value,
-  onChange,
-  prev,
-  year,
-  month,
-  mode,
-}: {
-  value: MonthlyContent
-  onChange: (v: MonthlyContent) => void
-  prev?: MonthlyContent
-  year: number
-  month: number
-  mode: ReportMode
-}) {
-  const [autoFillMsg, setAutoFillMsg] = useState('')
-  const autoFillDone = useRef(false)
-  const textFillDone = useRef(false)
-
-  // 이전 월간보고 텍스트 필드 자동입력 (create 모드, prev가 로드됐을 때)
-  useEffect(() => {
-    if (mode !== 'create' || textFillDone.current || !prev) return
-    textFillDone.current = true
-    const q = prev.qualitative
-    onChange({
-      ...value,
-      qualitative: {
-        target: value.qualitative.target || (q?.target ?? ''),
-        actual: value.qualitative.actual || (q?.actual ?? ''),
-        rate: value.qualitative.rate || (q?.rate ?? ''),
-      },
-      achievement_plan: value.achievement_plan || (prev.achievement_plan ?? ''),
-      budget_plan: value.budget_plan || (prev.budget_plan ?? ''),
-    })
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, prev])
-
-  // 최근 보고서 연간목표 자동입력 (create 모드, target이 비어있을 때)
-  useEffect(() => {
-    if (mode !== 'create' || autoFillDone.current) return
-    const isEmpty = !value.kpi_rows || value.kpi_rows.every(r => !r.target)
-    if (!isEmpty) { autoFillDone.current = true; return }
-    const ny = month === 12 ? year + 1 : year
-    const nm = month === 12 ? 1 : month + 1
-    const before = `${ny}-${String(nm).padStart(2, '0')}-01`
-    fetch(`/api/reports/previous?before=${before}`)
-      .then(r => r.ok ? r.json() : null)
-      .then(data => {
-        if (data?.content?.version === 2 && Array.isArray(data.content.kpi_rows)) {
-          autoFillDone.current = true
-          onChange({
-            ...value,
-            kpi_rows: value.kpi_rows.map((r, i) => ({
-              ...r,
-              target: data.content.kpi_rows[i]?.target ?? r.target,
-            })),
-          })
-          setAutoFillMsg(`최근 리포트(${data.period_label}) 연간목표 값을 자동으로 불러왔습니다.`)
-          setTimeout(() => setAutoFillMsg(''), 6000)
-        }
-      })
-      .catch(() => {})
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, year, month])
-
-  const setKpi = (i: number, patch: Partial<typeof value.kpi_rows[0]>) =>
-    onChange({ ...value, kpi_rows: value.kpi_rows.map((r, idx) => idx === i ? { ...r, ...patch } : r) })
-
-  const setQual = (patch: Partial<typeof value.qualitative>) =>
-    onChange({ ...value, qualitative: { ...value.qualitative, ...patch } })
-
-  const setBudget = (key: keyof typeof value.budget, patch: Partial<typeof value.budget.operator_gov>) =>
-    onChange({ ...value, budget: { ...value.budget, [key]: { ...value.budget[key], ...patch } } })
-
-  const opGov  = calcBudgetRow(value.budget.operator_gov)
-  const opSelf = calcBudgetRow(value.budget.operator_self)
-  const total  = calcBudgetSubtotal(value.budget.operator_gov, value.budget.operator_self)
-
-  const readonlyCls = 'w-full px-2 py-1.5 bg-gray-50 border border-gray-100 rounded text-xs text-gray-600 cursor-default'
-  const inputCls = 'w-full px-2 py-1.5 border border-gray-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white'
-  const numCls = 'w-full px-2 py-1.5 border border-gray-200 rounded text-xs text-center focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white tabular-nums'
-  const autoNumCls = 'w-full px-2 py-1.5 bg-gray-50 text-xs text-center tabular-nums text-gray-600 cursor-default'
-  const textareaCls = 'w-full px-3 py-2 border border-gray-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white resize-none leading-relaxed'
-
-  // 이전 월간보고의 정량실적 (ghost용)
-  const prevKpi = (prev as any)?.kpi_rows as typeof value.kpi_rows | undefined
-
-  return (
-    <div className="space-y-4">
-      {/* ── 1. 수행기관 정보 ── */}
-      <SectionCard title="1. 수행기관 정보">
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse">
-            <tbody>
-              <tr>
-                <td className={`${TH_BASE} w-24 text-center`}>기관명</td>
-                <td className={TD_BASE} colSpan={3}>
-                  <input readOnly value={value.org_info.operator} className={readonlyCls} />
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </SectionCard>
-
-      {/* ── 2. 정량 및 정성 실적 ── */}
-      <SectionCard title="2. 정량 및 정성 실적">
-        {prev && (
-          <p className="text-xs text-amber-600 bg-amber-50 border border-amber-100 rounded px-2 py-1.5 mb-3">
-            ※ 전월 리포트 내용을 참고용으로 표시합니다.
-          </p>
-        )}
-        {autoFillMsg && (
-          <p className="text-xs text-blue-600 bg-blue-50 border border-blue-100 rounded px-2 py-1.5 mb-3">
-            ✓ {autoFillMsg}
-          </p>
-        )}
-
-        {/* 정량실적 */}
-        <p className="text-xs font-semibold text-gray-600 mb-1.5">정량실적</p>
-        <div className="overflow-x-auto mb-4">
-          <table className="w-full border-collapse min-w-[420px]">
-            <thead>
-              <tr>
-                <th className={`${TH_BASE} w-32 text-center`}>지표명</th>
-                <th className={`${TH_BASE} text-center`}>연간목표(A)</th>
-                <th className={`${TH_BASE} text-center`}>누적실적(B)</th>
-                <th className={`${TH_BASE} w-20 text-center`}>달성률</th>
-              </tr>
-            </thead>
-            <tbody>
-              {KPI_LABELS.map((label, i) => {
-                const row = value.kpi_rows?.[i] ?? { target: '', actual: '' }
-                const prevRow = prevKpi?.[i]
-                const isManpower = label === '전문인력 양성(명)'
-                const isProgram = label === '프로그램 개발·운영(과정수)'
-                return (
-                  <tr key={label}>
-                    <td className={`${TH_BASE} text-center font-medium`}>
-                      <div>{label}</div>
-                      {KPI_HINTS[label] && <div className="text-[10px] font-normal text-gray-400 mt-0.5">{KPI_HINTS[label]}</div>}
-                    </td>
-                    <td className={`${TD_BASE} p-0.5`}>
-                      {isProgram ? (
-                        <div className="flex items-center gap-1">
-                          <span className="text-[10px] text-gray-400 w-6 flex-shrink-0 text-right">개발</span>
-                          <NumInput
-                            value={row.target}
-                            onChange={(v) => setKpi(i, { target: v })}
-                            className={numCls}
-                            placeholder={prevRow?.target ? fmtNum(prevRow.target) : '0'}
-                            decimal
-                          />
-                        </div>
-                      ) : (
-                        <NumInput
-                          value={row.target}
-                          onChange={(v) => setKpi(i, { target: v })}
-                          className={numCls}
-                          placeholder={prevRow?.target ? fmtNum(prevRow.target) : '0'}
-                          decimal
-                        />
-                      )}
-                    </td>
-                    <td className={`${TD_BASE} p-0.5`}>
-                      {isManpower ? (
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-1">
-                            <span className="text-[10px] text-gray-400 w-8 flex-shrink-0 text-right">수료</span>
-                            <GhostNumInput
-                              value={row.actual}
-                              onChange={(v) => setKpi(i, { actual: v })}
-                              ghostValue={prevRow?.actual}
-                              className={numCls}
-                              decimal
-                            />
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <span className="text-[10px] text-gray-400 w-8 flex-shrink-0 text-right">교육중</span>
-                            <GhostNumInput
-                              value={row.actual_sub ?? ''}
-                              onChange={(v) => setKpi(i, { actual_sub: v })}
-                              ghostValue={prevRow?.actual_sub}
-                              className={numCls}
-                              decimal
-                            />
-                          </div>
-                        </div>
-                      ) : isProgram ? (
-                        <div className="flex items-center gap-1">
-                          <span className="text-[10px] text-gray-400 w-6 flex-shrink-0 text-right">운영</span>
-                          <GhostNumInput
-                            value={row.actual}
-                            onChange={(v) => setKpi(i, { actual: v })}
-                            ghostValue={prevRow?.actual}
-                            className={numCls}
-                            decimal
-                          />
-                        </div>
-                      ) : (
-                        <GhostNumInput
-                          value={row.actual}
-                          onChange={(v) => setKpi(i, { actual: v })}
-                          ghostValue={prevRow?.actual}
-                          className={numCls}
-                          decimal
-                        />
-                      )}
-                    </td>
-                    <td className={`${TD_BASE} text-center font-semibold text-blue-600 tabular-nums`}>
-                      {calcRate(row.target, row.actual)}
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-
-        {/* 정성실적 */}
-        <p className="text-xs font-semibold text-gray-600 mb-1.5">정성실적</p>
-        <div className="overflow-x-auto mb-4">
-          <table className="w-full border-collapse min-w-[420px]">
-            <thead>
-              <tr>
-                <th className={`${TH_BASE} text-center`}>목표</th>
-                <th className={`${TH_BASE} text-center`}>실적</th>
-                <th className={`${TH_BASE} w-20 text-center`}>달성률</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td className={`${TD_BASE} p-0.5`}>
-                  <GhostTextarea
-                    value={value.qualitative.target ?? ''}
-                    onChange={(v) => setQual({ target: v })}
-                    ghostText={(prev?.qualitative as any)?.target}
-                    rows={3}
-                    placeholder="정성 목표 입력"
-                    className={textareaCls}
-                  />
-                </td>
-                <td className={`${TD_BASE} p-0.5`}>
-                  <GhostTextarea
-                    value={value.qualitative.actual ?? ''}
-                    onChange={(v) => setQual({ actual: v })}
-                    ghostText={(prev?.qualitative as any)?.actual}
-                    rows={3}
-                    placeholder="정성 실적 입력"
-                    className={textareaCls}
-                  />
-                </td>
-                <td className={`${TD_BASE} p-0.5 align-top`}>
-                  <input
-                    type="text"
-                    value={value.qualitative.rate ?? ''}
-                    onChange={(e) => setQual({ rate: e.target.value })}
-                    placeholder="예: 85%"
-                    className={numCls}
-                  />
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        {/* 향후목표 달성계획 */}
-        <div>
-          <label className="block text-xs font-medium text-gray-500 mb-1">향후목표 달성계획</label>
-          <GhostTextarea
-            value={value.achievement_plan}
-            onChange={(v) => onChange({ ...value, achievement_plan: v })}
-            ghostText={prev?.achievement_plan}
-            rows={3}
-            placeholder="향후목표 달성계획을 입력하세요"
-            className={textareaCls}
-          />
-        </div>
-      </SectionCard>
-
-      {/* ── 3. 예산 집행현황 ── */}
-      <SectionCard title="3. 예산 집행현황">
+      {/* ── 4. 예산 집행현황 ── */}
+      <SectionCard title="4. 예산 집행현황">
         <div className="overflow-x-auto mb-3">
           <table className="w-full border-collapse table-fixed min-w-[480px]">
             <thead>
@@ -1078,12 +648,8 @@ interface UserProfile {
 interface ReportFormProps {
   mode: ReportMode
   reportId?: string
-  initialType?: ReportType
   initialWeeklyDate?: string
-  initialMonthlyYear?: number
-  initialMonthlyMonth?: number
   initialWeeklyContent?: WeeklyContent
-  initialMonthlyContent?: MonthlyContent
   forceAllowSubmit?: boolean
   userProfile: UserProfile
   existingReports?: { id: string; type: string; period_start: string }[]
@@ -1096,12 +662,8 @@ interface ReportFormProps {
 export default function ReportForm({
   mode,
   reportId,
-  initialType,
   initialWeeklyDate,
-  initialMonthlyYear,
-  initialMonthlyMonth,
   initialWeeklyContent,
-  initialMonthlyContent,
   forceAllowSubmit = false,
   userProfile,
   existingReports,
@@ -1111,7 +673,6 @@ export default function ReportForm({
   const today = new Date()
   const defaultMonday = getMondayOfWeek(today)
 
-  const [type, setType] = useState<ReportType>(initialType ?? 'weekly')
   const [weeklyDate, setWeeklyDate] = useState(initialWeeklyDate ?? toDateStr(defaultMonday))
   const [weeklyDisplayYear, setWeeklyDisplayYear] = useState(() => {
     const d = new Date((initialWeeklyDate ?? toDateStr(defaultMonday)) + 'T00:00:00')
@@ -1121,22 +682,17 @@ export default function ReportForm({
     const d = new Date((initialWeeklyDate ?? toDateStr(defaultMonday)) + 'T00:00:00')
     return d.getMonth() + 1
   })
-  const [monthlyYear, setMonthlyYear] = useState(initialMonthlyYear ?? today.getFullYear())
-  const [monthlyMonth, setMonthlyMonth] = useState(initialMonthlyMonth ?? (today.getMonth() + 1))
 
   const [weekly, setWeekly] = useState<WeeklyContent>(
     initialWeeklyContent ?? defaultWeekly(userProfile.organization)
   )
-  const [monthly, setMonthly] = useState<MonthlyContent>(
-    initialMonthlyContent ?? defaultMonthly(userProfile.organization)
-  )
 
   const [prevWeekly, setPrevWeekly] = useState<WeeklyContent | undefined>()
-  const [prevMonthly, setPrevMonthly] = useState<MonthlyContent | undefined>()
   const [prevLabel, setPrevLabel] = useState('')
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [fileError, setFileError] = useState('')
   const [showRestorePrompt, setShowRestorePrompt] = useState(false)
   const [restored, setRestored] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
@@ -1153,6 +709,13 @@ export default function ReportForm({
     const selected = Array.from(e.target.files ?? [])
     if (!selected.length) return
     e.target.value = ''
+    const MAX = 10 * 1024 * 1024
+    const oversized = selected.filter(f => f.size > MAX)
+    if (oversized.length > 0) {
+      setFileError(`파일 용량 초과: ${oversized.map(f => `"${f.name}" (${(f.size / (1024 * 1024)).toFixed(1)}MB)`).join(', ')} — 파일당 10MB 이하만 첨부 가능합니다.`)
+      return
+    }
+    setFileError('')
     setUploading(true)
     for (const file of selected) {
       const fd = new FormData()
@@ -1191,70 +754,57 @@ export default function ReportForm({
   // ── 30초 자동저장
   useEffect(() => {
     const save = () => {
-      const draft = { type, weeklyDate, monthlyYear, monthlyMonth, weekly, monthly }
+      const draft = { weeklyDate, weekly }
       localStorage.setItem(lsKey, JSON.stringify(draft))
     }
     autoSaveTimer.current = setInterval(save, 30000)
     return () => { if (autoSaveTimer.current) clearInterval(autoSaveTimer.current) }
-  }, [type, weeklyDate, monthlyYear, monthlyMonth, weekly, monthly, lsKey])
+  }, [weeklyDate, weekly, lsKey])
 
   // ── 이전 보고서 불러오기 (기간 변경 시)
-  const fetchPrev = useCallback(async (t: ReportType, before: string) => {
+  const fetchPrev = useCallback(async (before: string) => {
     try {
-      const res = await fetch(`/api/reports/previous?type=${t}&before=${before}`)
-      if (!res.ok) { setPrevWeekly(undefined); setPrevMonthly(undefined); return }
+      const res = await fetch(`/api/reports/previous?type=weekly&before=${before}`)
+      if (!res.ok) { setPrevWeekly(undefined); return }
       const data = await res.json()
-      if (!data) { setPrevWeekly(undefined); setPrevMonthly(undefined); return }
+      if (!data) { setPrevWeekly(undefined); return }
       setPrevLabel(data.period_label ?? '')
-      if (t === 'weekly' && data.content?.version === 2) {
+      if (data.content?.version === 2) {
         setPrevWeekly(data.content as WeeklyContent)
-      } else if (t === 'monthly' && data.content?.version === 2) {
-        setPrevMonthly(data.content as MonthlyContent)
       } else {
-        setPrevWeekly(undefined); setPrevMonthly(undefined)
+        setPrevWeekly(undefined)
       }
     } catch {
-      setPrevWeekly(undefined); setPrevMonthly(undefined)
+      setPrevWeekly(undefined)
     }
   }, [])
 
   useEffect(() => {
     if (mode !== 'create') return
-    if (type === 'weekly') {
-      const { period_start } = calcWeeklyPeriod(weeklyDate)
-      fetchPrev('weekly', period_start)
-    } else {
-      const { period_start } = calcMonthlyPeriod(monthlyYear, monthlyMonth)
-      fetchPrev('monthly', period_start)
-    }
-  }, [mode, type, weeklyDate, monthlyYear, monthlyMonth, fetchPrev])
+    const { period_start } = calcWeeklyPeriod(weeklyDate)
+    fetchPrev(period_start)
+  }, [mode, weeklyDate, fetchPrev])
 
   // ── 중복 보고서 감지 (create 모드)
   useEffect(() => {
     if (mode !== 'create' || !existingReports) return
-    const { period_start } = type === 'weekly'
-      ? calcWeeklyPeriod(weeklyDate)
-      : calcMonthlyPeriod(monthlyYear, monthlyMonth)
-    const found = existingReports.find(r => r.type === type && r.period_start === period_start)
+    const { period_start } = calcWeeklyPeriod(weeklyDate)
+    const found = existingReports.find(r => r.type === 'weekly' && r.period_start === period_start)
     setDupReportId(found?.id ?? null)
-  }, [mode, type, weeklyDate, monthlyYear, monthlyMonth, existingReports])
+  }, [mode, weeklyDate, existingReports])
 
   const handleRestore = () => {
     const saved = localStorage.getItem(lsKey)
     if (!saved) return
     try {
       const d = JSON.parse(saved)
-      if (d.type) setType(d.type)
       if (d.weeklyDate) {
         setWeeklyDate(d.weeklyDate)
         const wd = new Date(d.weeklyDate + 'T00:00:00')
         setWeeklyDisplayYear(wd.getFullYear())
         setWeeklyDisplayMonth(wd.getMonth() + 1)
       }
-      if (d.monthlyYear) setMonthlyYear(d.monthlyYear)
-      if (d.monthlyMonth) setMonthlyMonth(d.monthlyMonth)
       if (d.weekly) setWeekly(d.weekly)
-      if (d.monthly) setMonthly(d.monthly)
       setRestored(true)
     } catch { /* ignore */ }
     setShowRestorePrompt(false)
@@ -1266,9 +816,7 @@ export default function ReportForm({
   }
 
   // ── 기간 정보
-  const { period_label, period_start, period_end, ..._rest } = type === 'weekly'
-    ? calcWeeklyPeriod(weeklyDate)
-    : { ...calcMonthlyPeriod(monthlyYear, monthlyMonth), monday: undefined }
+  const { period_label, period_start, period_end } = calcWeeklyPeriod(weeklyDate)
   const pastDeadline = isPastDeadline(period_end)
   const canSubmit = !dupReportId
 
@@ -1282,15 +830,13 @@ export default function ReportForm({
     setLoading(true)
     setError('')
 
-    const content = type === 'weekly' ? weekly : monthly
-
     let res: Response
     if (mode === 'create') {
       res = await fetch('/api/reports', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          type, period_label, period_start, period_end, content, status: saveStatus,
+          type: 'weekly', period_label, period_start, period_end, content: weekly, status: saveStatus,
           attachments: pendingFiles,
         }),
       })
@@ -1299,7 +845,7 @@ export default function ReportForm({
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          content, status: saveStatus,
+          content: weekly, status: saveStatus,
           addAttachments: pendingFiles,
           removeAttachmentIds: removedIds,
         }),
@@ -1317,10 +863,11 @@ export default function ReportForm({
     router.push(`/reports/${mode === 'create' ? data.id : reportId}`)
   }
 
-  // ── 미리보기 콘텐츠
-  const previewContent = type === 'weekly' ? weekly : monthly
   const submitLabel = mode === 'resubmit' ? '재제출' : mode === 'edit' ? '저장' : '제출'
   const showDraftBtn = mode !== 'edit'
+
+  // 사용하지 않는 변수 경고 방지
+  void pastDeadline
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6 pb-10">
@@ -1364,77 +911,36 @@ export default function ReportForm({
       )}
 
       <div className="space-y-4">
-        {/* 보고서 유형 */}
-        <div>
-          <label className="block text-xs font-medium text-gray-500 mb-2">리포트 유형</label>
-          <div className="flex gap-2">
-            {(['weekly', 'monthly'] as ReportType[]).map((t) => (
-              <button
-                key={t}
-                type="button"
-                onClick={() => { if (mode === 'create') setType(t) }}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  type === t ? 'bg-blue-600 text-white' :
-                  mode === 'create' ? 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50' :
-                  'bg-gray-100 text-gray-400 cursor-not-allowed'
-                }`}
-              >
-                {t === 'weekly' ? '주간 리포트' : '월간 리포트'}
-              </button>
-            ))}
-          </div>
-        </div>
-
         {/* 기간 선택 */}
         <div className="bg-white border border-gray-200 rounded-xl p-4">
           <label className="block text-xs font-medium text-gray-500 mb-3">리포트 기간</label>
-          {mode === 'create' ? (
-            type === 'weekly' ? (() => {
-              const weeks = getWeeksInMonth(weeklyDisplayYear, weeklyDisplayMonth)
-              const selectCls = 'px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white'
-              return (
-                <div className="flex gap-2 flex-wrap items-center">
-                  <select value={weeklyDisplayYear} onChange={(e) => {
-                    const ny = Number(e.target.value)
-                    setWeeklyDisplayYear(ny)
-                    const nw = getWeeksInMonth(ny, weeklyDisplayMonth)
-                    if (nw.length > 0) setWeeklyDate(nw[0].value)
-                  }} className={selectCls}>
-                    {[2024, 2025, 2026, 2027].map((y) => <option key={y} value={y}>{y}년</option>)}
-                  </select>
-                  <select value={weeklyDisplayMonth} onChange={(e) => {
-                    const nm = Number(e.target.value)
-                    setWeeklyDisplayMonth(nm)
-                    const nw = getWeeksInMonth(weeklyDisplayYear, nm)
-                    if (nw.length > 0) setWeeklyDate(nw[0].value)
-                  }} className={selectCls}>
-                    {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => <option key={m} value={m}>{m}월</option>)}
-                  </select>
-                  <select value={weeklyDate} onChange={(e) => setWeeklyDate(e.target.value)} className={selectCls}>
-                    {weeks.map((w) => <option key={w.value} value={w.value}>{w.label}</option>)}
-                  </select>
-                </div>
-              )
-            })() : (
-              <div className="flex gap-2 flex-wrap">
-                <select
-                  value={monthlyYear}
-                  onChange={(e) => setMonthlyYear(Number(e.target.value))}
-                  className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
+          {mode === 'create' ? (() => {
+            const weeks = getWeeksInMonth(weeklyDisplayYear, weeklyDisplayMonth)
+            const selectCls = 'px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white'
+            return (
+              <div className="flex gap-2 flex-wrap items-center">
+                <select value={weeklyDisplayYear} onChange={(e) => {
+                  const ny = Number(e.target.value)
+                  setWeeklyDisplayYear(ny)
+                  const nw = getWeeksInMonth(ny, weeklyDisplayMonth)
+                  if (nw.length > 0) setWeeklyDate(nw[0].value)
+                }} className={selectCls}>
                   {[2024, 2025, 2026, 2027].map((y) => <option key={y} value={y}>{y}년</option>)}
                 </select>
-                <select
-                  value={monthlyMonth}
-                  onChange={(e) => setMonthlyMonth(Number(e.target.value))}
-                  className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
+                <select value={weeklyDisplayMonth} onChange={(e) => {
+                  const nm = Number(e.target.value)
+                  setWeeklyDisplayMonth(nm)
+                  const nw = getWeeksInMonth(weeklyDisplayYear, nm)
+                  if (nw.length > 0) setWeeklyDate(nw[0].value)
+                }} className={selectCls}>
                   {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => <option key={m} value={m}>{m}월</option>)}
                 </select>
-                <p className="text-xs text-gray-500 self-center">{period_label}</p>
+                <select value={weeklyDate} onChange={(e) => setWeeklyDate(e.target.value)} className={selectCls}>
+                  {weeks.map((w) => <option key={w.value} value={w.value}>{w.label}</option>)}
+                </select>
               </div>
             )
-          ) : (
+          })() : (
             <p className="text-sm font-medium text-gray-800">{period_label}</p>
           )}
 
@@ -1452,24 +958,13 @@ export default function ReportForm({
         </div>
 
         {/* 보고서 본문 */}
-        {type === 'weekly' ? (
-          <WeeklyFormBody
-            value={weekly}
-            onChange={setWeekly}
-            prev={prevWeekly}
-            weeklyDate={weeklyDate}
-            mode={mode}
-          />
-        ) : (
-          <MonthlyFormBody
-            value={monthly}
-            onChange={setMonthly}
-            prev={prevMonthly}
-            year={monthlyYear}
-            month={monthlyMonth}
-            mode={mode}
-          />
-        )}
+        <WeeklyFormBody
+          value={weekly}
+          onChange={setWeekly}
+          prev={prevWeekly}
+          weeklyDate={weeklyDate}
+          mode={mode}
+        />
 
         {/* ── 첨부파일 ── */}
         <div className="bg-white border border-gray-200 rounded-xl p-4">
@@ -1477,8 +972,10 @@ export default function ReportForm({
             첨부파일 <span className="text-gray-400 font-normal">(선택, 파일당 10MB 이하)</span>
           </p>
           <p className="text-[10px] text-gray-400 mb-3">※ 민감정보 등의 경우 이메일 등 다른 연락수단을 사용하시기 바랍니다.</p>
+          {fileError && (
+            <div className="mb-3 bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-xs text-red-600">{fileError}</div>
+          )}
           <div className="space-y-2">
-            {/* 기존 첨부파일 (수정 모드) */}
             {existingFiles.map((f) => (
               <div key={f.id} className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
                 <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
@@ -1500,7 +997,6 @@ export default function ReportForm({
                 </button>
               </div>
             ))}
-            {/* 새로 추가된 파일 */}
             {pendingFiles.map((f, i) => (
               <div key={i} className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
                 <svg className="w-4 h-4 text-blue-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
@@ -1567,9 +1063,8 @@ export default function ReportForm({
       {/* 미리보기 모달 */}
       {showPreview && (
         <ReportPreviewModal
-          type={type}
           periodLabel={period_label}
-          content={previewContent}
+          content={weekly}
           onClose={() => setShowPreview(false)}
         />
       )}

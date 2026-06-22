@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import EventModal, { CalendarEvent } from './EventModal'
 import ImportModal from './ImportModal'
+import { FIXED_ORG_ORDER, sortOrgsByFixedOrder } from '@/lib/orgColors'
 
 const COLOR_BG: Record<string, string> = {
   // 10색 팔레트 (색상환 균등 분포)
@@ -55,9 +56,9 @@ const ORG_COLORS: CalendarEvent['color'][] = [
   'sky', 'indigo', 'violet', 'fuchsia', 'rose',
 ]
 
-// 기관 목록을 정렬 후 순서대로 색상 배정 → 해시 충돌 없음
+// 고정 순서 기준으로 기관 → 색상 맵 생성
 function buildOrgColorMap(allOrgs: string[]): Map<string, CalendarEvent['color']> {
-  const sorted = [...new Set(allOrgs)].sort()
+  const sorted = sortOrgsByFixedOrder([...new Set(allOrgs.filter(Boolean))])
   const map = new Map<string, CalendarEvent['color']>()
   sorted.forEach((org, i) => {
     map.set(org, ORG_COLORS[i % ORG_COLORS.length])
@@ -116,9 +117,9 @@ export default function CalendarView({ profile, organizations = [] }: Props) {
   const isAdmin    = profile.role === 'super_admin'
   const canPublish = isAdmin
 
-  // 현재 로드된 이벤트에서 기관 목록 동적 추출 (색상 범례용)
+  // 현재 로드된 이벤트에서 기관 목록 동적 추출 — 고정 순서로 정렬
   const activeOrgs = useMemo(() =>
-    [...new Set(events.map(e => e.organization).filter(Boolean) as string[])].sort(),
+    sortOrgsByFixedOrder([...new Set(events.map(e => e.organization).filter(Boolean) as string[])]),
     [events]
   )
 
@@ -134,7 +135,7 @@ export default function CalendarView({ profile, organizations = [] }: Props) {
     try {
       const apiBase = isAdmin ? '/api/admin/events' : '/api/events'
       const params  = new URLSearchParams({ year: String(year), month: String(month) })
-      if (isAdmin && orgFilter !== 'all') params.set('organization', orgFilter)
+      if (orgFilter !== 'all') params.set('organization', orgFilter)
       const res = await fetch(`${apiBase}?${params}`)
       if (res.ok) {
         setEvents(await res.json())
@@ -203,6 +204,31 @@ export default function CalendarView({ profile, organizations = [] }: Props) {
   const deleteEventsByGroup = async () => {
     if (!modalEvent?.repeat_group_id) return
     const res = await fetch(`/api/events?group_id=${modalEvent.repeat_group_id}`, { method: 'DELETE' })
+    if (!res.ok) throw new Error()
+    setModalEvent(undefined)
+    fetchEvents()
+  }
+
+  const saveEventFuture = async (data: Partial<CalendarEvent>) => {
+    if (!modalEvent?.id) return
+    const res = await fetch('/api/events', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        group_id:      modalEvent.repeat_group_id ?? null,
+        title_match:   modalEvent.repeat_group_id ? null : modalEvent.title,
+        from_start_at: modalEvent.start_at,
+        current_id:    modalEvent.id,
+        title:         data.title,
+        description:   data.description,
+        color:         data.color,
+        is_allday:     data.is_allday,
+        is_public:     data.is_public,
+        organization:  data.organization,
+        new_start_at:  data.start_at,
+        new_end_at:    data.end_at,
+      }),
+    })
     if (!res.ok) throw new Error()
     setModalEvent(undefined)
     fetchEvents()
@@ -287,7 +313,7 @@ export default function CalendarView({ profile, organizations = [] }: Props) {
         </div>
 
         <div className="flex gap-2 flex-wrap">
-          {isAdmin && organizations.length > 0 && (
+          {organizations.length > 0 && (
             <select
               value={orgFilter}
               onChange={e => setOrgFilter(e.target.value)}
@@ -444,12 +470,12 @@ export default function CalendarView({ profile, organizations = [] }: Props) {
                             <span className="text-xs text-gray-400">{fmtTime(ev.start_at)} ~ {fmtTime(ev.end_at)}</span>
                           )}
                           {ev.is_public && (
-                            <span className="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded">주관</span>
+                            <span className="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded">항상표시</span>
                           )}
                           {ev.source === 'report' && (
                             <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">보고서</span>
                           )}
-                          {isAdmin && ev.organization && (
+                          {ev.organization && (
                             <span className="text-[10px] text-gray-400 truncate">{ev.organization}</span>
                           )}
                         </div>
@@ -568,6 +594,7 @@ export default function CalendarView({ profile, organizations = [] }: Props) {
           isAdmin={isAdmin}
           organizations={isAdmin ? organizations : undefined}
           onSave={saveEvent}
+          onSaveFuture={modalEvent?.id && modalEvent?.repeat_group_id ? saveEventFuture : undefined}
           onDelete={modalEvent?.id ? deleteEvent : undefined}
           onDeleteAll={modalEvent?.id ? (modalEvent.repeat_group_id ? deleteEventsByGroup : deleteEventsByTitle) : undefined}
           onClose={() => { setModalEvent(undefined) }}

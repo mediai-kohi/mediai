@@ -61,21 +61,17 @@ export default function PushPermission() {
     setStatus('loading')
     setErrorMsg('')
     try {
-      console.log('[push] requesting permission...')
       const permission = await Notification.requestPermission()
-      console.log('[push] permission:', permission)
       if (permission !== 'granted') {
         setStatus(permission as PermissionStatus)
         return
       }
-      console.log('[push] waiting for service worker...')
       const reg = await Promise.race([
         navigator.serviceWorker.ready,
         new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error('서비스 워커 준비 시간 초과')), 10000)
         ),
       ])
-      console.log('[push] SW ready, active state:', reg.active?.state)
       const sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToArrayBuffer(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY),
@@ -92,7 +88,6 @@ export default function PushPermission() {
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
         console.error('[push] subscribe API error:', data)
-        // 브라우저 구독은 제거해 상태 일관성 유지
         await sub.unsubscribe()
         setStatus('default')
         setErrorMsg('구독 저장에 실패했습니다. 잠시 후 다시 시도해 주세요.')
@@ -102,7 +97,12 @@ export default function PushPermission() {
     } catch (err) {
       console.error('[push] subscribe error:', err)
       setStatus('default')
-      setErrorMsg('푸시 구독 중 오류가 발생했습니다.')
+      const msg = err instanceof Error ? err.message : ''
+      if (msg.includes('push service not available') || msg.includes('Registration failed')) {
+        setErrorMsg('푸시 서비스에 연결할 수 없습니다. 네트워크 또는 방화벽 설정을 확인해 주세요.')
+      } else {
+        setErrorMsg('푸시 구독 중 오류가 발생했습니다.')
+      }
     }
   }
 
@@ -127,53 +127,59 @@ export default function PushPermission() {
     }
   }
 
+  const handleToggle = () => {
+    if (status === 'loading') return
+    if (status === 'granted') handleUnsubscribe()
+    else handleSubscribe()
+  }
+
   if (status === 'unsupported') return null
 
-  if (status === 'loading') {
-    return (
-      <button disabled className="w-full bg-blue-400 text-white font-medium py-2.5 rounded-lg text-sm">
-        처리 중...
-      </button>
-    )
-  }
+  const isOn = status === 'granted'
+  const isLoading = status === 'loading'
 
   if (status === 'denied') {
     return (
-      <p className="text-sm text-gray-500">
-        푸시 알림이 차단되어 있습니다. 브라우저 설정에서 알림을 허용해주세요.
-      </p>
-    )
-  }
-
-  if (status === 'granted') {
-    return (
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="inline-block w-2 h-2 rounded-full bg-green-500" />
-          <span className="text-sm text-gray-700">푸시 알림이 활성화되어 있습니다</span>
+        <div>
+          <p className="text-sm text-gray-700 font-medium">푸시 알림</p>
+          <p className="text-xs text-gray-400 mt-0.5">브라우저 설정에서 알림을 허용해 주세요</p>
         </div>
-        <button
-          type="button"
-          onClick={handleUnsubscribe}
-          className="text-xs text-gray-500 border border-gray-300 hover:bg-gray-50 px-3 py-1.5 rounded-lg transition"
-        >
-          알림 해제
-        </button>
+        <div className="w-11 h-6 rounded-full bg-gray-200 flex items-center px-0.5 cursor-not-allowed opacity-50">
+          <div className="w-5 h-5 rounded-full bg-white shadow translate-x-0 transition-transform" />
+        </div>
       </div>
     )
   }
 
   return (
     <div className="space-y-2">
-      <button
-        type="button"
-        onClick={handleSubscribe}
-        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 rounded-lg text-sm transition"
-      >
-        푸시 알림 허용
-      </button>
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm text-gray-700 font-medium">푸시 알림</p>
+          <p className="text-xs text-gray-400 mt-0.5">
+            {isLoading ? '처리 중...' : isOn ? '알림이 활성화되어 있습니다' : '알림이 꺼져 있습니다'}
+          </p>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={isOn}
+          onClick={handleToggle}
+          disabled={isLoading}
+          className={`relative w-11 h-6 rounded-full transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${
+            isLoading ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'
+          } ${isOn ? 'bg-blue-600' : 'bg-gray-300'}`}
+        >
+          <span
+            className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${
+              isOn ? 'translate-x-5' : 'translate-x-0'
+            }`}
+          />
+        </button>
+      </div>
       {errorMsg && (
-        <p className="text-xs text-red-500 text-center">{errorMsg}</p>
+        <p className="text-xs text-red-500">{errorMsg}</p>
       )}
     </div>
   )

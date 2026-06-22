@@ -3,7 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { NextResponse } from 'next/server'
 import {
   computeWeeklySummary,
-  getMonday,
+  getWeekStartForDisplay,
   addDays,
   formatDateOnly,
   getISOWeekInfo,
@@ -40,7 +40,7 @@ export async function GET(request: Request) {
     weekStart = new Date(startOfWeek1)
     weekStart.setDate(startOfWeek1.getDate() + (week - 1) * 7)
   } else {
-    weekStart = getMonday(new Date())
+    weekStart = getWeekStartForDisplay(new Date())
   }
 
   const weekEnd = addDays(weekStart, 6)
@@ -56,15 +56,6 @@ export async function GET(request: Request) {
     .lte('period_start', endStr)
     .in('status', ['submitted', 'resubmitted', 'approved', 'revision_requested'])
 
-  // 최근 월간 보고서 (예산 집계용)
-  const { data: monthlyReports } = await admin
-    .from('reports')
-    .select('id, organization, type, status, period_start, period_end, content, submitted_at, created_at')
-    .eq('type', 'monthly')
-    .eq('status', 'approved')
-    .order('period_start', { ascending: false })
-    .limit(24)
-
   // 기존 확정 레코드 조회
   const { year, week_number } = getISOWeekInfo(weekStart)
   const { data: existing } = await admin
@@ -78,22 +69,34 @@ export async function GET(request: Request) {
     weeklyReports ?? [],
     weekStart,
     (existing?.status as 'partial' | 'confirmed') ?? 'partial',
-    existing?.confirmed_at ?? null,
-    monthlyReports ?? []
+    existing?.confirmed_at ?? null
   )
 
-  // partial 레코드 upsert (아카이브 목록 표시 및 이력 보존용)
+  // partial 레코드 저장 (아카이브 목록 표시 및 이력 보존용)
   if (!existing || existing.status !== 'confirmed') {
-    await admin.from('weekly_summaries').upsert({
-      year,
-      week_number,
+    const { data: existingRow } = await admin
+      .from('weekly_summaries')
+      .select('id')
+      .eq('year', year)
+      .eq('week_number', week_number)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    const payload = {
       period_label: summary.period_label,
       period_start: summary.period_start,
       period_end: summary.period_end,
       status: 'partial',
       snapshot: summary,
       updated_at: new Date().toISOString(),
-    }, { onConflict: 'year,week_number' }).select()
+    }
+
+    if (existingRow) {
+      await admin.from('weekly_summaries').update(payload).eq('id', existingRow.id)
+    } else {
+      await admin.from('weekly_summaries').insert({ year, week_number, ...payload })
+    }
   }
 
   return NextResponse.json(summary)
@@ -115,7 +118,7 @@ export async function POST(request: Request) {
     weekStart = new Date(startOfWeek1)
     weekStart.setDate(startOfWeek1.getDate() + (week - 1) * 7)
   } else {
-    weekStart = getMonday(new Date())
+    weekStart = getWeekStartForDisplay(new Date())
   }
 
   const weekEnd = addDays(weekStart, 6)
@@ -130,15 +133,7 @@ export async function POST(request: Request) {
     .lte('period_start', endStr)
     .in('status', ['submitted', 'resubmitted', 'approved', 'revision_requested'])
 
-  const { data: monthlyReports } = await admin
-    .from('reports')
-    .select('id, organization, type, status, period_start, period_end, content, submitted_at, created_at')
-    .eq('type', 'monthly')
-    .eq('status', 'approved')
-    .order('period_start', { ascending: false })
-    .limit(24)
-
-  const summary = computeWeeklySummary(weeklyReports ?? [], weekStart, 'confirmed', null, monthlyReports ?? [])
+  const summary = computeWeeklySummary(weeklyReports ?? [], weekStart, 'confirmed', null)
 
   if (!force && !summary.all_approved) {
     return NextResponse.json(
@@ -151,23 +146,47 @@ export async function POST(request: Request) {
   const confirmedAt = new Date().toISOString()
   const confirmedSummary = { ...summary, status: 'confirmed' as const, confirmed_at: confirmedAt }
 
-  const { data: upserted, error } = await admin
+  const payload = {
+    period_label: summary.period_label,
+    period_start: summary.period_start,
+    period_end: summary.period_end,
+    status: 'confirmed' as const,
+    confirmed_at: confirmedAt,
+    snapshot: confirmedSummary,
+    updated_at: confirmedAt,
+  }
+
+  // 기존 행이 있으면 UPDATE, 없으면 INSERT
+  const { data: existingRow } = await admin
     .from('weekly_summaries')
-    .upsert({
-      year: y,
-      week_number: w,
-      period_label: summary.period_label,
-      period_start: summary.period_start,
-      period_end: summary.period_end,
-      status: 'confirmed',
-      confirmed_at: confirmedAt,
-      snapshot: confirmedSummary,
-      updated_at: confirmedAt,
-    }, { onConflict: 'year,week_number' })
     .select('id')
-    .single()
+    .eq('year', y)
+    .eq('week_number', w)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  let savedId: string | null = null
+  let dbError: { message: string } | null = null
 
-  return NextResponse.json({ ...confirmedSummary, id: upserted?.id })
+  if (existingRow) {
+    const { error } = await admin
+      .from('weekly_summaries')
+      .update(payload)
+      .eq('id', existingRow.id)
+    dbError = error
+    savedId = existingRow.id
+  } else {
+    const { data: inserted, error } = await admin
+      .from('weekly_summaries')
+      .insert({ year: y, week_number: w, ...payload })
+      .select('id')
+      .single()
+    dbError = error
+    savedId = inserted?.id ?? null
+  }
+
+  if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 })
+
+  return NextResponse.json({ ...confirmedSummary, id: savedId })
 }

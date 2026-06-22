@@ -168,7 +168,7 @@ export default function Nav({ profile }: { profile: Profile | null }) {
 
   const handleLogout = async () => {
     const supabase = createClient()
-    await supabase.auth.signOut()
+    await supabase.auth.signOut({ scope: 'local' })
     router.push('/auth/login')
   }
 

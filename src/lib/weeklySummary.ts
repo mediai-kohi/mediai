@@ -1,4 +1,4 @@
-import type { KpiRow, ActivityRow, WeeklyContent, MonthlyContent } from '@/app/(app)/reports/report-types'
+import type { KpiRow, ActivityRow, WeeklyContent } from '@/app/(app)/reports/report-types'
 
 // ─── 상수 ────────────────────────────────────────────────────────────────────
 
@@ -110,6 +110,19 @@ export function getMonday(date: Date): Date {
   return d
 }
 
+// 목요일 기준 표시 주 계산:
+// 월~수 → 지난주 월요일, 목~일 → 이번주 월요일
+export function getWeekStartForDisplay(date: Date): Date {
+  const d = new Date(date)
+  d.setHours(0, 0, 0, 0)
+  const monday = getMonday(d)
+  const day = d.getDay() // 0=일, 1=월, 2=화, 3=수, 4=목, 5=금, 6=토
+  if (day >= 1 && day <= 3) {
+    return addDays(monday, -7)
+  }
+  return monday
+}
+
 export function addDays(date: Date, n: number): Date {
   const d = new Date(date)
   d.setDate(d.getDate() + n)
@@ -206,7 +219,6 @@ export function computeWeeklySummary(
   weekStart: Date,
   existingStatus: 'partial' | 'confirmed' = 'partial',
   existingConfirmedAt: string | null = null,
-  monthlyReports: DbReport[] = [],
   baseOrgs: string[] = []
 ): WeeklySummaryData {
   const weekEnd = addDays(weekStart, 6)
@@ -294,16 +306,16 @@ export function computeWeeklySummary(
     }
   })
 
-  // 예산 (월간 보고서에서 집계)
+  // 예산 (주간 보고서 최신 1건에서 기관별 집계)
   const orgExecutions: { org: string; executed: number }[] = []
   let totalExecuted = 0
-  for (const r of monthlyReports) {
-    const content = r.content as MonthlyContent | null
+  for (const [org, r] of orgMap) {
+    const content = r.content as WeeklyContent | null
     const gov = parseNum(content?.budget?.operator_gov?.executed)
     const self = parseNum(content?.budget?.operator_self?.executed)
     const sum = gov + self
     if (sum > 0) {
-      orgExecutions.push({ org: r.organization, executed: sum })
+      orgExecutions.push({ org, executed: sum })
       totalExecuted += sum
     }
   }

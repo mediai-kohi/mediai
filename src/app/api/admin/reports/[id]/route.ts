@@ -127,7 +127,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           .maybeSingle()
 
         if (!existing || existing.status !== 'confirmed') {
-          const summary = computeWeeklySummary(weekReports ?? [], weekStart, 'confirmed', null, [], registeredOrgs)
+          const summary = computeWeeklySummary(weekReports ?? [], weekStart, 'confirmed', null, registeredOrgs)
           const confirmedAt = new Date().toISOString()
           await admin.from('weekly_summaries').upsert({
             year,

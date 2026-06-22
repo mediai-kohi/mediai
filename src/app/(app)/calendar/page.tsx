@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { sortOrgsByFixedOrder } from '@/lib/orgColors'
 import CalendarView from './CalendarView'
 
 export default async function CalendarPage() {
@@ -13,19 +14,17 @@ export default async function CalendarPage() {
     .eq('id', user!.id)
     .single()
 
-  let organizations: string[] = []
-  if (profile?.role === 'super_admin') {
-    const { data: userProfiles } = await admin
-      .from('profiles')
-      .select('organization')
-      .eq('status', 'approved')
-      .not('organization', 'is', null)
-      .neq('organization', '')
+  // 모든 사용자에게 기관 목록 제공 (기관별 필터링 지원)
+  const { data: userProfiles } = await admin
+    .from('profiles')
+    .select('organization')
+    .eq('status', 'approved')
+    .not('organization', 'is', null)
+    .neq('organization', '')
 
-    organizations = [...new Set(
-      (userProfiles ?? []).map((p: { organization: string }) => p.organization).filter(Boolean) as string[]
-    )].sort()
-  }
+  const organizations = sortOrgsByFixedOrder([...new Set(
+    (userProfiles ?? []).map((p: { organization: string }) => p.organization).filter(Boolean) as string[]
+  )])
 
   if (!profile) {
     return (

@@ -6,6 +6,7 @@ import WeeklySummarySection from '@/components/admin/WeeklySummarySection'
 import {
   computeWeeklySummary,
   getMonday,
+  getWeekStartForDisplay,
   addDays,
   formatDateOnly,
   getISOWeekInfo,
@@ -20,9 +21,12 @@ export default async function AdminDashboard() {
   const admin = createAdminClient()
 
   const now = new Date()
-  const monday = getMonday(now)
-  const sunday = addDays(monday, 6)
-  sunday.setHours(23, 59, 59, 999)
+  // 통계 카드(이번 주 보고서 수)는 실제 캘린더 주 기준
+  const calendarMonday = getMonday(now)
+  const calendarSunday = addDays(calendarMonday, 6)
+  calendarSunday.setHours(23, 59, 59, 999)
+  // 주간 실적 요약은 목요일 기준(월~수: 지난주, 목~일: 이번주)
+  const monday = getWeekStartForDisplay(now)
   const startStr = formatDateOnly(monday)
   const endStr = formatDateOnly(addDays(monday, 6))
 
@@ -31,13 +35,12 @@ export default async function AdminDashboard() {
     { count: weeklyReports },
     { count: revisionRequests },
     { data: weeklyReportsRaw },
-    { data: monthlyReportsRaw },
     { data: orgProfiles },
     { data: latestAiReportRaw },
   ] = await Promise.all([
     admin.from('inquiries').select('id', { count: 'exact', head: true }).in('status', ['open', 'in_progress']),
     admin.from('reports').select('id', { count: 'exact', head: true })
-      .gte('submitted_at', monday.toISOString()).lte('submitted_at', sunday.toISOString()),
+      .gte('submitted_at', calendarMonday.toISOString()).lte('submitted_at', calendarSunday.toISOString()),
     admin.from('reports').select('id', { count: 'exact', head: true }).eq('status', 'revision_requested'),
     admin.from('reports')
       .select('id, organization, type, status, period_start, period_end, content, submitted_at, approved_at, created_at')
@@ -45,12 +48,6 @@ export default async function AdminDashboard() {
       .gte('period_start', startStr)
       .lte('period_start', endStr)
       .in('status', ['submitted', 'resubmitted', 'approved', 'revision_requested']),
-    admin.from('reports')
-      .select('id, organization, type, status, period_start, period_end, content, submitted_at, created_at')
-      .eq('type', 'monthly')
-      .eq('status', 'approved')
-      .order('period_start', { ascending: false })
-      .limit(24),
     admin.from('profiles')
       .select('organization')
       .eq('status', 'approved')
@@ -80,7 +77,6 @@ export default async function AdminDashboard() {
     monday,
     (existingSummary?.status as 'partial' | 'confirmed') ?? 'partial',
     existingSummary?.confirmed_at ?? null,
-    monthlyReportsRaw ?? [],
     registeredOrgs
   )
 
