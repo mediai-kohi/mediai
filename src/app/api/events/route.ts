@@ -39,7 +39,8 @@ export async function GET(request: Request) {
     to.setDate(to.getDate() + 7)
   }
 
-  // 모든 사용자가 전체 일정 조회 가능, 기관 필터 지원
+  const isAdmin = profile.role === 'super_admin'
+
   let query = admin
     .from('events')
     .select('*')
@@ -48,9 +49,14 @@ export async function GET(request: Request) {
     .order('start_at', { ascending: true })
 
   const org = searchParams.get('organization')
+  const isHome = searchParams.get('home') === 'true'
+
   if (org && org !== 'all') {
     // 선택한 기관 일정 + is_public=true 일정 항상 포함
     query = query.or(`organization.eq.${org},is_public.eq.true`)
+  } else if (isHome && !isAdmin && profile.organization) {
+    // 홈 화면: 본인 소속기관 일정 + 관리자가 항상 표시로 등록한 일정만
+    query = query.or(`organization.eq.${profile.organization},is_public.eq.true`)
   }
 
   const { data, error } = await query

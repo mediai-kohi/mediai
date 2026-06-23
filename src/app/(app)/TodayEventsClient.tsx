@@ -24,7 +24,7 @@ function formatHeaderDate(d: Date): string {
   return `${d.getMonth() + 1}월 ${d.getDate()}일 (${WEEKDAY_KO[d.getDay()]})`
 }
 
-function formatStartTime(iso: string): string {
+function formatTime(iso: string): string {
   const d = new Date(iso)
   const h = d.getHours()
   const m = String(d.getMinutes()).padStart(2, '0')
@@ -41,7 +41,7 @@ export default function TodayEventsClient() {
 
   useEffect(() => {
     setLoading(true)
-    fetch(`/api/events?date=${dateKey}`)
+    fetch(`/api/events?date=${dateKey}&home=true`)
       .then(r => r.json())
       .then(d => setEvents(Array.isArray(d) ? d : []))
       .catch(() => setEvents([]))
@@ -76,10 +76,13 @@ export default function TodayEventsClient() {
             {sorted.map(ev => (
               <li key={ev.id} className="flex items-center gap-2.5 px-4 py-2.5">
                 <span className={`w-2 h-2 rounded-full shrink-0 ${COLOR_BG[getOrgColor(ev.organization)]}`} />
-                <span className="text-xs text-gray-500 w-16 shrink-0">
-                  {ev.is_allday ? '종일' : formatStartTime(ev.start_at)}
+                <span className="text-xs text-gray-500 shrink-0">
+                  {ev.is_allday ? '종일' : `${formatTime(ev.start_at)} ~ ${formatTime(ev.end_at)}`}
                 </span>
                 <span className="text-sm text-gray-800 flex-1 truncate">{ev.title}</span>
+                {ev.organization && (
+                  <span className="text-xs text-gray-400 shrink-0 max-w-[6rem] truncate">{ev.organization}</span>
+                )}
               </li>
             ))}
           </ul>

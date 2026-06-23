@@ -44,7 +44,7 @@ export default function HomeClient() {
     const start = toDateKey(weekDays[0])
     const end = toDateKey(weekDays[6])
     setLoading(true)
-    fetch(`/api/events?start=${start}&end=${end}`)
+    fetch(`/api/events?start=${start}&end=${end}&home=true`)
       .then(r => r.json())
       .then(d => setEvents(Array.isArray(d) ? d : []))
       .catch(() => setEvents([]))
@@ -130,38 +130,30 @@ export default function HomeClient() {
         {loading ? (
           <div className="py-4 text-center text-xs text-gray-400">불러오는 중...</div>
         ) : (
-          <div className="grid grid-cols-7 min-h-[56px]">
+          <div className="grid grid-cols-7">
             {weekDays.map((d, i) => {
               const key = toDateKey(d)
               const dayEvs = eventsByDay[key] ?? []
-              const shown = dayEvs.slice(0, 2)
-              const overflow = dayEvs.length - 2
 
               return (
                 <div key={key} className={`p-1 flex flex-col gap-0.5 ${i < 6 ? 'border-r border-gray-50' : ''}`}>
                   {/* Desktop: event pills */}
                   <div className="hidden md:flex flex-col gap-0.5">
-                    {shown.map(ev => (
+                    {dayEvs.map(ev => (
                       <div
                         key={ev.id}
                         className={`text-[10px] font-medium px-1.5 py-0.5 rounded truncate ${COLOR_LIGHT[getOrgColor(ev.organization)]}`}
-                        title={ev.title}
+                        title={ev.organization ? `[${ev.organization}] ${ev.title}` : ev.title}
                       >
                         {ev.title}
                       </div>
                     ))}
-                    {overflow > 0 && (
-                      <div className="text-[10px] text-gray-400 pl-1">+{overflow}</div>
-                    )}
                   </div>
                   {/* Mobile: color dots only */}
                   <div className="md:hidden flex flex-wrap gap-0.5 pt-1 justify-center">
-                    {dayEvs.slice(0, 3).map(ev => (
+                    {dayEvs.map(ev => (
                       <span key={ev.id} className={`w-1.5 h-1.5 rounded-full ${COLOR_BG[getOrgColor(ev.organization)]}`} />
                     ))}
-                    {dayEvs.length > 3 && (
-                      <span className="text-[9px] text-gray-400">+{dayEvs.length - 3}</span>
-                    )}
                   </div>
                 </div>
               )

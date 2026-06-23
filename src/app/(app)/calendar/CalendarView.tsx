@@ -413,6 +413,7 @@ export default function CalendarView({ profile, organizations = [] }: Props) {
                       <button
                         key={ev.id}
                         onClick={e => { e.stopPropagation(); setModalEvent(ev) }}
+                        title={ev.organization ? `[${ev.organization}] ${ev.title}` : ev.title}
                         className={`w-full text-left rounded px-1 py-0.5 text-[10px] font-medium truncate flex items-center gap-1 ${COLOR_LIGHT[orgColorMap.get(ev.organization ?? '') ?? 'gray']}`}
                       >
                         {ev.is_public && (
@@ -522,6 +523,7 @@ export default function CalendarView({ profile, organizations = [] }: Props) {
                     <div key={i} className="py-1 px-0.5 space-y-0.5 min-h-[28px]">
                       {dayEvts.map(ev => (
                         <button key={ev.id} onClick={() => setModalEvent(ev)}
+                          title={ev.organization ? `[${ev.organization}] ${ev.title}` : ev.title}
                           className={`w-full text-left rounded px-1.5 py-0.5 text-[10px] font-medium truncate ${COLOR_LIGHT[orgColorMap.get(ev.organization ?? '') ?? 'gray']}`}>
                           {ev.title}
                         </button>
@@ -563,6 +565,7 @@ export default function CalendarView({ profile, organizations = [] }: Props) {
                     <button
                       key={ev.id}
                       onClick={() => setModalEvent(ev)}
+                      title={ev.organization ? `[${ev.organization}] ${ev.title}` : ev.title}
                       className={`absolute rounded px-1 py-0.5 text-[10px] font-medium overflow-hidden text-left ${COLOR_LIGHT[orgColorMap.get(ev.organization ?? '') ?? 'gray']}`}
                       style={{
                         top:    `${top}px`,

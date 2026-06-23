@@ -85,27 +85,27 @@ export default async function AdminDashboard() {
       <h1 className="text-lg font-semibold text-gray-900 mb-5">관리자 대시보드</h1>
 
       {/* 통계 카드 */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-8">
+      <div className="grid grid-cols-3 gap-3 mb-8">
         <Link
           href="/admin/inquiries?status=open"
-          className="border rounded-xl p-4 hover:opacity-80 transition-opacity bg-yellow-50 border-yellow-200"
+          className="border rounded-xl p-3 md:p-4 hover:opacity-80 transition-opacity bg-yellow-50 border-yellow-200"
         >
-          <p className="text-xs font-medium text-gray-500 mb-2">미답변 문의</p>
-          <p className="text-3xl font-bold text-yellow-700">{openInquiries ?? 0}</p>
+          <p className="text-[11px] md:text-xs font-medium text-gray-500 mb-1.5 md:mb-2 leading-tight">미답변 문의</p>
+          <p className="text-2xl md:text-3xl font-bold text-yellow-700">{openInquiries ?? 0}</p>
         </Link>
         <Link
           href="/admin/reports"
-          className="border rounded-xl p-4 hover:opacity-80 transition-opacity bg-blue-50 border-blue-200"
+          className="border rounded-xl p-3 md:p-4 hover:opacity-80 transition-opacity bg-blue-50 border-blue-200"
         >
-          <p className="text-xs font-medium text-gray-500 mb-2">이번 주 보고서</p>
-          <p className="text-3xl font-bold text-blue-700">{weeklyReports ?? 0}</p>
+          <p className="text-[11px] md:text-xs font-medium text-gray-500 mb-1.5 md:mb-2 leading-tight">이번 주 보고서</p>
+          <p className="text-2xl md:text-3xl font-bold text-blue-700">{weeklyReports ?? 0}</p>
         </Link>
         <Link
           href="/admin/reports?tab=revision"
-          className="border rounded-xl p-4 hover:opacity-80 transition-opacity bg-red-50 border-red-200"
+          className="border rounded-xl p-3 md:p-4 hover:opacity-80 transition-opacity bg-red-50 border-red-200"
         >
-          <p className="text-xs font-medium text-gray-500 mb-2">수정 요청 대기</p>
-          <p className="text-3xl font-bold text-red-700">{revisionRequests ?? 0}</p>
+          <p className="text-[11px] md:text-xs font-medium text-gray-500 mb-1.5 md:mb-2 leading-tight">수정 요청 대기</p>
+          <p className="text-2xl md:text-3xl font-bold text-red-700">{revisionRequests ?? 0}</p>
         </Link>
       </div>
 

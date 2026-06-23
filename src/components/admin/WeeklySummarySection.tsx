@@ -78,7 +78,7 @@ function KpiCard({ kpi, index }: { kpi: WeeklySummaryData['headline_kpis'][numbe
         <span className={`${c.en} opacity-70`}>{KPI_ICONS[index]}</span>
       </div>
       <div className="flex items-end gap-1">
-        <span className={`text-3xl font-bold ${c.num} leading-none`}>{actualStr}</span>
+        <span className={`text-2xl md:text-3xl font-bold ${c.num} leading-none`}>{actualStr}</span>
         {kpi.target > 0 && (
           <span className="text-sm text-gray-400 mb-0.5">/ {targetStr}{kpi.unit}</span>
         )}
@@ -325,11 +325,11 @@ export default function WeeklySummarySection({ initialData, aiReport }: Props) {
     <div className="space-y-6">
 
       {/* ── 헤더 ── */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <h2 className="text-sm font-semibold text-gray-900">{data.period_label} 주간 실적 요약</h2>
           {isConfirmed && (
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 shrink-0">
               <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
               </svg>
@@ -339,7 +339,7 @@ export default function WeeklySummarySection({ initialData, aiReport }: Props) {
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           {!isConfirmed && data.all_approved && (
             <button
               onClick={() => handleConfirm(false)}
@@ -366,14 +366,14 @@ export default function WeeklySummarySection({ initialData, aiReport }: Props) {
       </div>
 
       {/* ── 기관 제출 현황 배너 ── */}
-      <div className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 flex items-center gap-3">
+      <div className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 flex flex-wrap items-center gap-2">
         <span className={`w-2 h-2 rounded-full flex-shrink-0 ${data.all_approved ? 'bg-emerald-500' : 'bg-blue-500'}`} />
-        <p className="text-xs text-gray-600 flex-1">
+        <p className="text-xs text-gray-600 flex-1 min-w-0">
           {data.all_approved
             ? `${data.org_statuses.length}개 기관 전체 승인 완료 — 주간 실적 요약 확정 가능`
             : `${data.submitted_count}개 기관 제출 · ${data.approved_count}개 기관 승인 (미제출 ${data.org_statuses.length - data.submitted_count}개)`}
         </p>
-        <span className="text-xs text-gray-400">{data.period_start} ~ {data.period_end}</span>
+        <span className="text-xs text-gray-400 shrink-0">{data.period_start} ~ {data.period_end}</span>
       </div>
 
       {/* ── 1. 핵심 성과 대시보드 ── */}
@@ -381,7 +381,7 @@ export default function WeeklySummarySection({ initialData, aiReport }: Props) {
         <div className="flex items-center gap-2.5 mb-3">
           <span className="inline-flex items-center justify-center w-5 h-5 rounded bg-gray-800 text-white text-[10px] font-bold flex-shrink-0">1</span>
           <p className="text-sm font-bold text-gray-800">핵심 성과 대시보드</p>
-          <span className="text-[11px] font-semibold text-gray-400 tracking-wider">KEY KPI</span>
+          <span className="hidden sm:inline text-[11px] font-semibold text-gray-400 tracking-wider">KEY KPI</span>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {data.headline_kpis.map((kpi, i) => (
@@ -405,7 +405,7 @@ export default function WeeklySummarySection({ initialData, aiReport }: Props) {
         <div className="flex items-center gap-2.5 mb-3">
           <span className="inline-flex items-center justify-center w-5 h-5 rounded bg-gray-800 text-white text-[10px] font-bold flex-shrink-0">2</span>
           <p className="text-sm font-bold text-gray-800">주요 운영기관별 핵심 동향</p>
-          <span className="text-[11px] font-semibold text-gray-400 tracking-wider">INSTITUTIONS</span>
+          <span className="hidden sm:inline text-[11px] font-semibold text-gray-400 tracking-wider">INSTITUTIONS</span>
         </div>
         {aiDetails.length > 0 ? (
           <>
@@ -483,7 +483,7 @@ export default function WeeklySummarySection({ initialData, aiReport }: Props) {
           <div className="flex items-center gap-2.5 mb-3">
             <span className="inline-flex items-center justify-center w-5 h-5 rounded bg-gray-800 text-white text-[10px] font-bold flex-shrink-0">3</span>
             <p className="text-sm font-bold text-gray-800">예산 집행 현황</p>
-            <span className="text-[11px] font-semibold text-gray-400 tracking-wider">BUDGET</span>
+            <span className="hidden sm:inline text-[11px] font-semibold text-gray-400 tracking-wider">BUDGET</span>
           </div>
           <div className="bg-white border border-gray-200 rounded-2xl p-5">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -532,7 +532,7 @@ export default function WeeklySummarySection({ initialData, aiReport }: Props) {
         <div className="flex items-center gap-2.5 mb-3">
           <span className="inline-flex items-center justify-center w-5 h-5 rounded bg-gray-800 text-white text-[10px] font-bold flex-shrink-0">4</span>
           <p className="text-sm font-bold text-gray-800">향후 운영 준비사항</p>
-          <span className="text-[11px] font-semibold text-gray-400 tracking-wider">ISSUES & ACTIONS</span>
+          <span className="hidden sm:inline text-[11px] font-semibold text-gray-400 tracking-wider">ISSUES & ACTIONS</span>
         </div>
         {aiReport?.issues && aiReport.issues.length > 0 ? (
           <div className="space-y-2">

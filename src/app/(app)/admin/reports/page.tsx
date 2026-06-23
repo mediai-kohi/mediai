@@ -424,10 +424,10 @@ export default function AdminReportsPage() {
       <h1 className="text-lg font-semibold text-gray-900 mb-4">보고서 관리</h1>
 
       {/* 탭 */}
-      <div className="flex gap-1 mb-5">
-        {([['list', '보고서 목록'], ['pending', '승인 대기'], ['summary', 'AI 분석'], ['ai_history', '분석 기록']] as [PageTab, string][]).map(([t, label]) => (
+      <div className="flex flex-wrap gap-1 mb-5">
+        {([['list', '목록'], ['pending', '승인 대기'], ['summary', 'AI 분석'], ['ai_history', '분석 기록']] as [PageTab, string][]).map(([t, label]) => (
           <button key={t} onClick={() => setTab(t)}
-            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${tab === t ? 'bg-blue-600 text-white' : 'text-gray-500 hover:bg-gray-200'}`}>
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${tab === t ? 'bg-blue-600 text-white' : 'text-gray-500 hover:bg-gray-200'}`}>
             {label}
             {t === 'pending' && pending.length > 0 && (
               <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full bg-red-500 text-white text-[10px] font-bold">{pending.length}</span>
