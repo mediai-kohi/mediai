@@ -98,24 +98,35 @@ function WeeklyDetail({ content }: { content: WeeklyContent }) {
       <section>
         <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">성과지표 달성 현황</h3>
         <div className="overflow-x-auto rounded-lg border border-gray-200">
-          <table className="w-full border-collapse min-w-[360px]">
+          <table className="w-full border-collapse min-w-[420px]">
             <thead>
               <tr>
                 <th className={`${TH} w-28`}>지표명</th>
                 <th className={`${TH}`}>연간목표(A)</th>
                 <th className={`${TH}`}>누적실적(B)</th>
                 <th className={`${TH} w-20`}>달성률</th>
+                <th className={`${TH} w-28`}>비고</th>
               </tr>
             </thead>
             <tbody>
               {KPI_LABELS.map((label, i) => {
                 const row = kpi_rows[i] ?? { target: '', actual: '' }
+                const isManpower = label === '전문인력 양성(명)'
+                const actualSub = (row as { actual_sub?: string }).actual_sub
                 return (
                   <tr key={label}>
                     <td className={`${TH} font-medium`}>{label}</td>
                     <td className={TDC}>{fmtNum(row.target) || '—'}</td>
-                    <td className={TDC}>{fmtNum(row.actual) || '—'}</td>
+                    <td className={TDC}>
+                      {isManpower ? (
+                        <div className="text-left space-y-0.5">
+                          <div>수료: {fmtNum(row.actual) || '—'}</div>
+                          <div>교육중: {fmtNum(actualSub ?? '') || '—'}</div>
+                        </div>
+                      ) : (fmtNum(row.actual) || '—')}
+                    </td>
                     <td className={`${TDC} font-semibold text-blue-600`}>{calcRate(row.target, row.actual)}</td>
+                    <td className={TD}>{(row as { note?: string }).note || '—'}</td>
                   </tr>
                 )
               })}
