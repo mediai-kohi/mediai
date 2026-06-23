@@ -230,7 +230,7 @@ export default function Nav({ profile }: { profile: Profile | null }) {
       </aside>
 
       {/* Mobile Bottom Navigation */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-30 safe-area-pb">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-30 safe-area-pb overflow-hidden">
         <div className="flex">
           {navItems.map((item) => {
             const active = isActive(item.href)
@@ -240,13 +240,13 @@ export default function Nav({ profile }: { profile: Profile | null }) {
                 key={item.href}
                 href={item.href}
                 onClick={() => handleNavClick(item)}
-                className="flex-1 flex flex-col items-center justify-center min-h-[56px] py-2 gap-0.5"
+                className="flex-1 min-w-0 flex flex-col items-center justify-center min-h-[56px] py-2 gap-0.5"
               >
                 <span className="relative">
                   {item.icon(active)}
                   <NavBadge count={badge} />
                 </span>
-                <span className={`text-[10px] font-medium ${active ? 'text-blue-600' : 'text-gray-400'}`}>
+                <span className={`text-[10px] font-medium truncate w-full text-center ${active ? 'text-blue-600' : 'text-gray-400'}`}>
                   {item.label}
                 </span>
               </Link>
