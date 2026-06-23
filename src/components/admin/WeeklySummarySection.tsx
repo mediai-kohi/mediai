@@ -281,6 +281,7 @@ export default function WeeklySummarySection({ initialData, aiReport }: Props) {
   const [data, setData] = useState<WeeklySummaryData | null>(initialData)
   const [selectedOrg, setSelectedOrg] = useState<OrgStatus | null>(null)
   const [confirming, setConfirming] = useState(false)
+  const [archiveKey, setArchiveKey] = useState(0)
 
   if (!data) {
     return (
@@ -300,6 +301,7 @@ export default function WeeklySummarySection({ initialData, aiReport }: Props) {
       })
       if (res.ok) {
         setData(await res.json() as WeeklySummaryData)
+        setArchiveKey(k => k + 1)
       } else {
         const err = await res.json() as { error: string }
         alert(err.error)
@@ -564,7 +566,7 @@ export default function WeeklySummarySection({ initialData, aiReport }: Props) {
       </div>
 
       {/* ── 확정된 주간 요약 목록 ── */}
-      <ArchiveList />
+      <ArchiveList key={archiveKey} />
 
       {/* 기관 세부 드로어 */}
       {selectedOrg && (
