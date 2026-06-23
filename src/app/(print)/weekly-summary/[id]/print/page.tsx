@@ -4,6 +4,7 @@ import { redirect, notFound } from 'next/navigation'
 import type { WeeklySummaryData } from '@/lib/weeklySummary'
 import { KPI_LABELS } from '@/lib/weeklySummary'
 import PrintTrigger from './PrintTrigger'
+import PrintButtons from './PrintButtons'
 
 export default async function WeeklySummaryPrintPage({
   params,
@@ -58,21 +59,7 @@ export default async function WeeklySummaryPrintPage({
         th, td { vertical-align: middle; }
       `}</style>
 
-      {/* 화면용 프린트 버튼 (인쇄 시 숨김) */}
-      <div className="no-print fixed top-4 right-4 flex gap-2 z-50">
-        <button
-          onClick={() => window.print()}
-          className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg shadow hover:bg-blue-700"
-        >
-          인쇄 / PDF 저장
-        </button>
-        <button
-          onClick={() => window.close()}
-          className="px-4 py-2 bg-gray-200 text-gray-700 text-sm font-medium rounded-lg shadow hover:bg-gray-300"
-        >
-          닫기
-        </button>
-      </div>
+      <PrintButtons />
 
       <div className="max-w-[780px] mx-auto px-8 py-8 print:px-0 print:py-0">
 
