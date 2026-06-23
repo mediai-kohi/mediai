@@ -241,8 +241,8 @@ function ArchiveList() {
           ) : (
             <div className="divide-y divide-gray-100">
               {archives.map((a) => (
-                <div key={a.id} className="flex items-center justify-between px-5 py-3">
-                  <div>
+                <div key={a.id} className="flex items-center justify-between px-5 py-3 gap-3">
+                  <div className="min-w-0">
                     <p className="text-sm font-medium text-gray-800">{a.period_label}</p>
                     <p className="text-xs text-gray-400 mt-0.5">
                       확정일: {a.confirmed_at
@@ -250,16 +250,40 @@ function ArchiveList() {
                         : '-'}
                     </p>
                   </div>
-                  <a
-                    href={`/api/admin/weekly-summary/archive/${a.id}/download`}
-                    download
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
-                  >
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                    </svg>
-                    Excel 다운로드
-                  </a>
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    {/* PDF */}
+                    <button
+                      onClick={() => window.open(`/weekly-summary/${a.id}/print`, '_blank')}
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors"
+                    >
+                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                      </svg>
+                      PDF
+                    </button>
+                    {/* Word */}
+                    <a
+                      href={`/api/admin/weekly-summary/archive/${a.id}/download?format=docx`}
+                      download
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-white bg-blue-700 hover:bg-blue-800 rounded-lg transition-colors"
+                    >
+                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      Word
+                    </a>
+                    {/* Excel */}
+                    <a
+                      href={`/api/admin/weekly-summary/archive/${a.id}/download`}
+                      download
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors"
+                    >
+                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                      </svg>
+                      Excel
+                    </a>
+                  </div>
                 </div>
               ))}
             </div>
