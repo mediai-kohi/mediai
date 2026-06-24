@@ -97,12 +97,10 @@ function buildWeeklyRows(report: ReportDownloadData): (string | number)[][] {
 
 export function printReportPdf(report: ReportDownloadData) {
   const html = buildWeeklyHtml(report)
-  const win = window.open('', '_blank')
-  if (!win) return
-  win.document.write(html)
-  win.document.close()
-  win.focus()
-  setTimeout(() => win.print(), 600)
+  const blob = new Blob([html], { type: 'text/html; charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  window.open(url, '_blank')
+  setTimeout(() => URL.revokeObjectURL(url), 30000)
 }
 
 // ── 공통 CSS ──
@@ -125,7 +123,7 @@ const PRINT_CSS = `
 `
 
 function wrapHtml(title: string, body: string): string {
-  return `<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"><title>${title}</title><style>${PRINT_CSS}</style></head><body>${body}</body></html>`
+  return `<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"><title>${title}</title><style>${PRINT_CSS}</style><script>window.onload=function(){setTimeout(function(){window.print()},400)}<\/script></head><body>${body}</body></html>`
 }
 
 function buildWeeklyHtml(report: ReportDownloadData): string {
