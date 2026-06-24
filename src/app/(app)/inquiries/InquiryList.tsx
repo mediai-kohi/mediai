@@ -101,6 +101,16 @@ export default function InquiryList() {
 
   return (
     <div className="max-w-2xl mx-auto md:max-w-3xl pb-24">
+      {/* Privacy notice */}
+      <div className="mx-4 mt-4 mb-1 flex items-start gap-2 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3">
+        <svg className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+        </svg>
+        <p className="text-xs text-amber-700 leading-relaxed">
+          개인정보, 민감정보 등이 포함된 사항은 이메일 및 유선연락을 활용해 주시기 바랍니다.
+        </p>
+      </div>
+
       {/* Sticky header */}
       <div className="sticky top-0 z-10 bg-gray-50 pt-4 pb-2 px-4">
         {/* Search */}
