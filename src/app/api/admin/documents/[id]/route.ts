@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+﻿import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { NextResponse } from 'next/server'
 
@@ -24,6 +24,6 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   await admin.storage.from('documents').remove([doc.storage_path])
 
   const { error } = await admin.from('documents').delete().eq('id', id)
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return NextResponse.json({ error: '처리 중 오류가 발생했습니다.' }, { status: 500 })
   return NextResponse.json({ success: true })
 }

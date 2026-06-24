@@ -1,7 +1,8 @@
-import { createClient } from '@/lib/supabase/server'
+﻿import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { NextResponse } from 'next/server'
-import * as XLSX from 'xlsx'
+import ExcelJS from 'exceljs'
+import { Readable } from 'stream'
 
 // Excel 날짜 시리얼 → ISO 문자열 변환
 function excelSerialToDate(serial: number): string {
@@ -15,6 +16,12 @@ function excelSerialToDate(serial: number): string {
 function normalizeDate(val: unknown): string | null {
   if (val === null || val === undefined || val === '') return null
   if (typeof val === 'number') return excelSerialToDate(val)
+  if (val instanceof Date) {
+    const y = val.getUTCFullYear()
+    const mo = String(val.getUTCMonth() + 1).padStart(2, '0')
+    const d = String(val.getUTCDate()).padStart(2, '0')
+    return `${y}-${mo}-${d}`
+  }
   const s = String(val).trim()
   // YYYY-MM-DD 또는 YYYY/MM/DD
   const m = s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/)
@@ -32,6 +39,11 @@ function normalizeTime(val: unknown): string | null {
     const totalMins = Math.round(val * 1440)
     const h = Math.floor(totalMins / 60)
     const m = totalMins % 60
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+  }
+  if (val instanceof Date) {
+    const h = val.getUTCHours()
+    const m = val.getUTCMinutes()
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
   }
   const s = String(val).trim()
@@ -160,8 +172,8 @@ export async function POST(request: Request) {
   if (!file) return NextResponse.json({ error: '파일이 없습니다.' }, { status: 400 })
 
   const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
-  if (!['xlsx', 'xls', 'csv'].includes(ext)) {
-    return NextResponse.json({ error: '.xlsx, .xls, .csv 파일만 지원합니다.' }, { status: 400 })
+  if (!['xlsx', 'csv'].includes(ext)) {
+    return NextResponse.json({ error: '.xlsx, .csv 파일만 지원합니다.' }, { status: 400 })
   }
 
   const MAX_SIZE = 5 * 1024 * 1024 // 5MB
@@ -173,9 +185,29 @@ export async function POST(request: Request) {
 
   let rows: Record<string, unknown>[]
   try {
-    const wb = XLSX.read(buffer, { type: 'buffer', cellDates: false })
-    const ws = wb.Sheets[wb.SheetNames[0]]
-    rows = XLSX.utils.sheet_to_json(ws, { defval: '' })
+    const wb = new ExcelJS.Workbook()
+    if (ext === 'csv') {
+      const stream = Readable.from(new Uint8Array(buffer))
+      await wb.csv.read(stream)
+    } else {
+      await wb.xlsx.load(buffer.buffer as ArrayBuffer)
+    }
+    const ws = wb.worksheets[0]
+    if (!ws) throw new Error('시트 없음')
+
+    const headers: string[] = []
+    const parsed: Record<string, unknown>[] = []
+    ws.eachRow((row, rowNumber) => {
+      const values = (row.values as ExcelJS.CellValue[]).slice(1)
+      if (rowNumber === 1) {
+        for (const v of values) headers.push(v != null ? String(v) : '')
+      } else {
+        const obj: Record<string, unknown> = {}
+        values.forEach((v, i) => { obj[headers[i] ?? `col${i}`] = v ?? '' })
+        parsed.push(obj)
+      }
+    })
+    rows = parsed
   } catch {
     return NextResponse.json({ error: '파일 파싱에 실패했습니다. 형식을 확인해 주세요.' }, { status: 400 })
   }
@@ -293,7 +325,7 @@ export async function POST(request: Request) {
   const { error: insertError } = await admin.from('events').insert(insertRecords)
 
   if (insertError) {
-    return NextResponse.json({ error: insertError.message }, { status: 500 })
+    return NextResponse.json({ error: '처리 중 오류가 발생했습니다.' }, { status: 500 })
   }
 
   return NextResponse.json({ imported: insertRecords.length, errors })

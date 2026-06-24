@@ -1,4 +1,4 @@
-import { createAdminClient } from '@/lib/supabase/admin'
+﻿import { createAdminClient } from '@/lib/supabase/admin'
 import { notifyUser } from '@/lib/notifications/notify'
 import { NextResponse } from 'next/server'
 
@@ -33,7 +33,7 @@ export async function GET(request: Request) {
 
   if (usersError) {
     console.error('[cron] fetch approved users error:', usersError)
-    return NextResponse.json({ error: usersError.message }, { status: 500 })
+    return NextResponse.json({ error: '처리 중 오류가 발생했습니다.' }, { status: 500 })
   }
 
   if (!approvedUsers || approvedUsers.length === 0) {

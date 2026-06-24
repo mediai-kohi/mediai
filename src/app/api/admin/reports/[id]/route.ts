@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+﻿import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { notifyUser } from '@/lib/notifications/notify'
 import { NextResponse } from 'next/server'
@@ -59,7 +59,7 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   await admin.from('events').delete().eq('source', 'report').eq('source_id', id)
 
   const { error } = await admin.from('reports').delete().eq('id', id)
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return NextResponse.json({ error: '처리 중 오류가 발생했습니다.' }, { status: 500 })
   return NextResponse.json({ success: true })
 }
 
@@ -82,7 +82,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     .select('*')
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return NextResponse.json({ error: '처리 중 오류가 발생했습니다.' }, { status: 500 })
 
   // 승인 시 해당 주차 전 기관 완료 여부 확인 → 자동 확정
   if (body.status === 'approved' && (data as Record<string, unknown>).type === 'weekly') {

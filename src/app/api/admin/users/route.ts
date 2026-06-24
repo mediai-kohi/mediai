@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+﻿import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { NextResponse } from 'next/server'
 import { randomBytes } from 'node:crypto'
@@ -37,7 +37,7 @@ export async function GET(request: Request) {
   if (tab === 'pending') query = query.eq('status', 'pending')
 
   const { data, error } = await query
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return NextResponse.json({ error: '처리 중 오류가 발생했습니다.' }, { status: 500 })
   return NextResponse.json(data ?? [])
 }
 
@@ -83,7 +83,7 @@ export async function POST(request: Request) {
 
   if (profileError) {
     await admin.auth.admin.deleteUser(authUser.user.id).catch(() => null)
-    return NextResponse.json({ error: profileError.message }, { status: 500 })
+    return NextResponse.json({ error: '처리 중 오류가 발생했습니다.' }, { status: 500 })
   }
 
   return NextResponse.json({ user_code, temp_password }, { status: 201 })

@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { NextResponse } from 'next/server'
-import * as XLSX from 'xlsx'
+import ExcelJS from 'exceljs'
 import {
   Document, Packer, Paragraph, Table, TableRow, TableCell, TextRun,
   HeadingLevel, AlignmentType, WidthType, BorderStyle, ShadingType,
@@ -118,127 +118,120 @@ function sectionHeading(num: number | string, title: string): Paragraph {
 
 // ── Excel 생성 ────────────────────────────────────────────────────────────────
 
-function buildXlsx(
+async function buildXlsx(
   snapshot: WeeklySummaryData,
   confirmedAt: string | null,
   periodLabel: string,
   aiReport: AiReportData | null
-): Buffer {
-  const wb = XLSX.utils.book_new()
+): Promise<Buffer> {
+  const wb = new ExcelJS.Workbook()
   const confirmedStr = confirmedAt ? new Date(confirmedAt).toLocaleDateString('ko-KR') : '-'
 
   // ── 1. 핵심 성과 지표 (Headline KPI) ──
-  const headlineHeader = ['지표명', '영문', '실적', '목표', '달성률(%)', '달성 상태']
-  const headlineRows = (snapshot.headline_kpis ?? []).map((k) => [
-    k.label, k.labelEn,
-    k.actual % 1 === 0 ? k.actual : Number(k.actual.toFixed(1)),
-    k.target,
-    Number(k.rate.toFixed(1)),
-    k.tagline,
-  ])
-  const headlineSheet = XLSX.utils.aoa_to_sheet([
-    [`${periodLabel} 핵심 성과 지표`],
-    [`확정일: ${confirmedStr}`],
-    [],
-    headlineHeader,
-    ...headlineRows,
-  ])
-  headlineSheet['!cols'] = [{ wch: 16 }, { wch: 22 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 14 }]
-  XLSX.utils.book_append_sheet(wb, headlineSheet, '핵심 KPI')
+  const headlineSheet = wb.addWorksheet('핵심 KPI')
+  ;[16, 22, 10, 10, 10, 14].forEach((w, i) => { headlineSheet.getColumn(i + 1).width = w })
+  headlineSheet.addRow([`${periodLabel} 핵심 성과 지표`])
+  headlineSheet.addRow([`확정일: ${confirmedStr}`])
+  headlineSheet.addRow([])
+  headlineSheet.addRow(['지표명', '영문', '실적', '목표', '달성률(%)', '달성 상태'])
+  for (const k of (snapshot.headline_kpis ?? [])) {
+    headlineSheet.addRow([
+      k.label, k.labelEn,
+      k.actual % 1 === 0 ? k.actual : Number(k.actual.toFixed(1)),
+      k.target,
+      Number(k.rate.toFixed(1)),
+      k.tagline,
+    ])
+  }
 
   // ── 2. KPI 요약 ──
-  const kpiHeader = ['지표명', '목표 합계', '누적 실적', '달성률']
-  const kpiRows = (snapshot.kpi_totals ?? []).map((k) => [k.label, k.target, k.actual, k.rate])
-  const kpiSheet = XLSX.utils.aoa_to_sheet([
-    [`${periodLabel} 주간 실적 요약`],
-    [`확정일: ${confirmedStr}`],
-    [],
-    kpiHeader,
-    ...kpiRows,
-  ])
-  kpiSheet['!cols'] = [{ wch: 22 }, { wch: 12 }, { wch: 12 }, { wch: 10 }]
-  XLSX.utils.book_append_sheet(wb, kpiSheet, 'KPI 요약')
+  const kpiSheet = wb.addWorksheet('KPI 요약')
+  ;[22, 12, 12, 10].forEach((w, i) => { kpiSheet.getColumn(i + 1).width = w })
+  kpiSheet.addRow([`${periodLabel} 주간 실적 요약`])
+  kpiSheet.addRow([`확정일: ${confirmedStr}`])
+  kpiSheet.addRow([])
+  kpiSheet.addRow(['지표명', '목표 합계', '누적 실적', '달성률'])
+  for (const k of (snapshot.kpi_totals ?? [])) {
+    kpiSheet.addRow([k.label, k.target, k.actual, k.rate])
+  }
 
   // ── 3. 기관별 현황 ──
-  const orgHeader = ['기관명', '제출 상태', ...KPI_LABELS, '이번 주 실적', '다음 주 계획']
-  const orgRows = (snapshot.org_statuses ?? []).map((o) => [
-    o.org,
-    o.display_status,
-    ...(KPI_LABELS.map((_, i) => {
-      const row = o.kpi_rows?.[i]
-      return row ? `목표: ${row.target} / 실적: ${row.actual}` : '-'
-    })),
-    o.tagline || '-',
-    o.next_week || '-',
-  ])
-  const orgSheet = XLSX.utils.aoa_to_sheet([
-    [`${periodLabel} 운영기관별 세부 현황`],
-    [],
-    orgHeader,
-    ...orgRows,
-  ])
-  orgSheet['!cols'] = [
-    { wch: 16 }, { wch: 8 },
-    ...KPI_LABELS.map(() => ({ wch: 22 })),
-    { wch: 30 }, { wch: 30 },
-  ]
-  XLSX.utils.book_append_sheet(wb, orgSheet, '기관별 현황')
+  const orgSheet = wb.addWorksheet('기관별 현황')
+  ;[16, 8, ...KPI_LABELS.map(() => 22), 30, 30].forEach((w, i) => { orgSheet.getColumn(i + 1).width = w })
+  orgSheet.addRow([`${periodLabel} 운영기관별 세부 현황`])
+  orgSheet.addRow([])
+  orgSheet.addRow(['기관명', '제출 상태', ...KPI_LABELS, '이번 주 실적', '다음 주 계획'])
+  for (const o of (snapshot.org_statuses ?? [])) {
+    orgSheet.addRow([
+      o.org,
+      o.display_status,
+      ...KPI_LABELS.map((_, i) => {
+        const row = o.kpi_rows?.[i]
+        return row ? `목표: ${row.target} / 실적: ${row.actual}` : '-'
+      }),
+      o.tagline || '-',
+      o.next_week || '-',
+    ])
+  }
 
   // ── 4. 예산 집행 ──
   if (snapshot.budget?.total_budget > 0 || (snapshot.budget?.org_executions?.length ?? 0) > 0) {
-    const budgetRows: (string | number)[][] = [
-      [`${periodLabel} 예산 집행 현황`], [],
-      ['구분', '금액(원)'],
-      ['총 예산(보조금)', snapshot.budget.total_budget],
-      ['총 집행액', snapshot.budget.total_executed],
-      ['집행률', snapshot.budget.execution_rate],
-      [], ['기관명', '집행액(원)'],
-      ...(snapshot.budget.org_executions ?? []).map((e) => [e.org, e.executed]),
-    ]
-    const budgetSheet = XLSX.utils.aoa_to_sheet(budgetRows)
-    budgetSheet['!cols'] = [{ wch: 20 }, { wch: 16 }]
-    XLSX.utils.book_append_sheet(wb, budgetSheet, '예산 집행')
+    const budgetSheet = wb.addWorksheet('예산 집행')
+    ;[20, 16].forEach((w, i) => { budgetSheet.getColumn(i + 1).width = w })
+    budgetSheet.addRow([`${periodLabel} 예산 집행 현황`])
+    budgetSheet.addRow([])
+    budgetSheet.addRow(['구분', '금액(원)'])
+    budgetSheet.addRow(['총 예산(보조금)', snapshot.budget.total_budget])
+    budgetSheet.addRow(['총 집행액', snapshot.budget.total_executed])
+    budgetSheet.addRow(['집행률', snapshot.budget.execution_rate])
+    budgetSheet.addRow([])
+    budgetSheet.addRow(['기관명', '집행액(원)'])
+    for (const e of (snapshot.budget.org_executions ?? [])) {
+      budgetSheet.addRow([e.org, e.executed])
+    }
   }
 
   // ── 5. AI 분석 ──
   if (aiReport) {
-    const aiRows: (string | number)[][] = [
-      [`${periodLabel} AI 분석 보고서`], [],
-    ]
+    const aiSheet = wb.addWorksheet('AI 분석')
+    ;[18, 28, 40, 30].forEach((w, i) => { aiSheet.getColumn(i + 1).width = w })
+    aiSheet.addRow([`${periodLabel} AI 분석 보고서`])
+    aiSheet.addRow([])
 
     if (aiReport.key_message) {
-      aiRows.push(['[ 핵심 메시지 ]'], [aiReport.key_message], [])
+      aiSheet.addRow(['[ 핵심 메시지 ]'])
+      aiSheet.addRow([aiReport.key_message])
+      aiSheet.addRow([])
     }
 
     if (aiReport.institution_details && aiReport.institution_details.length > 0) {
-      aiRows.push(['[ 기관별 핵심 동향 ]'], ['기관명', 'KPI 현황', '이번 주 주요 활동', '다음 주 계획'])
+      aiSheet.addRow(['[ 기관별 핵심 동향 ]'])
+      aiSheet.addRow(['기관명', 'KPI 현황', '이번 주 주요 활동', '다음 주 계획'])
       for (const d of aiReport.institution_details) {
-        aiRows.push([d.organization, d.kpi_status, d.current_week, d.next_week])
+        aiSheet.addRow([d.organization, d.kpi_status, d.current_week, d.next_week])
       }
-      aiRows.push([])
+      aiSheet.addRow([])
     }
 
     if (aiReport.issues && aiReport.issues.length > 0) {
-      aiRows.push(['[ 향후 운영 준비사항 ]'], ['이슈', '해당 기관', '평가', '조치 방안'])
+      aiSheet.addRow(['[ 향후 운영 준비사항 ]'])
+      aiSheet.addRow(['이슈', '해당 기관', '평가', '조치 방안'])
       for (const issue of aiReport.issues) {
-        aiRows.push([issue.issue, issue.organizations, issue.assessment, issue.action])
+        aiSheet.addRow([issue.issue, issue.organizations, issue.assessment, issue.action])
       }
-      aiRows.push([])
+      aiSheet.addRow([])
     }
 
     if (aiReport.next_week_checklist && aiReport.next_week_checklist.length > 0) {
-      aiRows.push(['[ 다음 주 체크리스트 ]'], ['No', '항목', '세부 내용', '담당/대상'])
+      aiSheet.addRow(['[ 다음 주 체크리스트 ]'])
+      aiSheet.addRow(['No', '항목', '세부 내용', '담당/대상'])
       for (const c of aiReport.next_week_checklist) {
-        aiRows.push([c.no, c.item, c.content, c.target])
+        aiSheet.addRow([c.no, c.item, c.content, c.target])
       }
     }
-
-    const aiSheet = XLSX.utils.aoa_to_sheet(aiRows)
-    aiSheet['!cols'] = [{ wch: 18 }, { wch: 28 }, { wch: 40 }, { wch: 30 }]
-    XLSX.utils.book_append_sheet(wb, aiSheet, 'AI 분석')
   }
 
-  return Buffer.from(XLSX.write(wb, { type: 'array', bookType: 'xlsx' }) as ArrayBuffer)
+  return Buffer.from(await wb.xlsx.writeBuffer())
 }
 
 // ── Word 생성 ─────────────────────────────────────────────────────────────────
@@ -669,7 +662,7 @@ export async function GET(
   }
 
   // 기본: Excel
-  const xlsxBuf = buildXlsx(snapshot, summary.confirmed_at, periodLabel, aiReport)
+  const xlsxBuf = await buildXlsx(snapshot, summary.confirmed_at, periodLabel, aiReport)
   return new Response(new Uint8Array(xlsxBuf), {
     headers: {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

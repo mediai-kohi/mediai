@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import * as XLSX from 'xlsx'
+import ExcelJS from 'exceljs'
 
 interface RowError {
   row: number
@@ -18,21 +18,26 @@ interface Props {
   onClose: () => void
 }
 
-function downloadTemplate() {
-  const wb = XLSX.utils.book_new()
-  const header = ['기관', '제목', '시작일', '시작시간', '종료일', '종료시간', '종일', '반복', '요일', '반복종료일', '설명']
-  const examples = [
-    ['한국대학교', '팀 회의',    '2026-06-10', '10:00', '2026-06-10', '11:00', 'N', '매주', '수', '2026-08-31', '주간 팀 미팅'],
-    ['서울교육원', '교육 세미나', '2026-06-15', '09:00', '2026-06-16', '18:00', 'N', '없음', '',  '',           '연수원 세미나'],
-    ['한국대학교', '격주 회의',  '2026-06-10', '14:00', '2026-06-10', '15:00', 'N', '격주', '금', '2026-08-31', '격주 금요 회의'],
-  ]
-  const ws = XLSX.utils.aoa_to_sheet([header, ...examples])
-  ws['!cols'] = [
-    { wch: 16 }, { wch: 18 }, { wch: 14 }, { wch: 10 },
-    { wch: 14 }, { wch: 10 }, { wch: 6 },  { wch: 8 }, { wch: 8 }, { wch: 14 }, { wch: 24 },
-  ]
-  XLSX.utils.book_append_sheet(wb, ws, '일정')
-  XLSX.writeFile(wb, '캘린더_일정_템플릿.xlsx')
+async function downloadTemplate() {
+  const wb = new ExcelJS.Workbook()
+  const ws = wb.addWorksheet('일정')
+  ;[16, 18, 14, 10, 14, 10, 6, 8, 8, 14, 24].forEach((w, i) => { ws.getColumn(i + 1).width = w })
+  ws.addRow(['기관', '제목', '시작일', '시작시간', '종료일', '종료시간', '종일', '반복', '요일', '반복종료일', '설명'])
+  ws.addRow(['한국대학교', '팀 회의', '2026-06-10', '10:00', '2026-06-10', '11:00', 'N', '매주', '수', '2026-08-31', '주간 팀 미팅'])
+  ws.addRow(['서울교육원', '교육 세미나', '2026-06-15', '09:00', '2026-06-16', '18:00', 'N', '없음', '', '', '연수원 세미나'])
+  ws.addRow(['한국대학교', '격주 회의', '2026-06-10', '14:00', '2026-06-10', '15:00', 'N', '격주', '금', '2026-08-31', '격주 금요 회의'])
+  const buffer = await wb.xlsx.writeBuffer()
+  const blob = new Blob([buffer as ArrayBuffer], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = '캘린더_일정_템플릿.xlsx'
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
 }
 
 export default function ImportModal({ onImported, onClose }: Props) {
@@ -94,7 +99,7 @@ export default function ImportModal({ onImported, onClose }: Props) {
             <p>선택 컬럼: <span className="font-mono">기관, 시작시간, 종료시간, 종일(Y/N), 반복(없음/매주/격주), 요일(월~일, 매주·격주 시 필수), 반복종료일, 설명</span></p>
             <button
               type="button"
-              onClick={downloadTemplate}
+              onClick={() => { void downloadTemplate() }}
               className="inline-flex items-center gap-1.5 mt-1 text-blue-700 font-medium hover:underline"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

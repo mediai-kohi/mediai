@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+﻿import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { NextResponse } from 'next/server'
 
@@ -33,7 +33,7 @@ export async function PATCH(
     .select('id, content, created_at, admin_id')
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return NextResponse.json({ error: '처리 중 오류가 발생했습니다.' }, { status: 500 })
 
   // admin 프로필 조회 (FK join 방식 대신 명시적 lookup)
   const { data: adminProfile } = data?.admin_id
@@ -53,6 +53,6 @@ export async function DELETE(
   if (!ctx) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const { error } = await ctx.admin.from('inquiry_replies').delete().eq('id', replyId)
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return NextResponse.json({ error: '처리 중 오류가 발생했습니다.' }, { status: 500 })
   return NextResponse.json({ success: true })
 }

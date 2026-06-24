@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+﻿import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient as createRawClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
@@ -15,7 +15,7 @@ export async function GET() {
     .eq('id', user.id)
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return NextResponse.json({ error: '처리 중 오류가 발생했습니다.' }, { status: 500 })
   return NextResponse.json(data)
 }
 
@@ -44,7 +44,7 @@ export async function PATCH(request: Request) {
     .update(updates)
     .eq('id', user.id)
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return NextResponse.json({ error: '처리 중 오류가 발생했습니다.' }, { status: 500 })
   return NextResponse.json({ success: true })
 }
 
@@ -108,7 +108,7 @@ export async function DELETE(request: Request) {
 
   const { error: deleteError } = await admin.auth.admin.deleteUser(user.id)
   if (deleteError) {
-    return NextResponse.json({ error: deleteError.message }, { status: 500 })
+    return NextResponse.json({ error: '처리 중 오류가 발생했습니다.' }, { status: 500 })
   }
 
   try { await supabase.auth.signOut() } catch { /* ignore */ }

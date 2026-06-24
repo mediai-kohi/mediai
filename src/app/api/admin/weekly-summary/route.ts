@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+﻿import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { NextResponse } from 'next/server'
 import {
@@ -186,7 +186,7 @@ export async function POST(request: Request) {
     savedId = inserted?.id ?? null
   }
 
-  if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 })
+  if (dbError) return NextResponse.json({ error: '처리 중 오류가 발생했습니다.' }, { status: 500 })
 
   return NextResponse.json({ ...confirmedSummary, id: savedId })
 }

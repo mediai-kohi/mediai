@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+﻿import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 
 export async function GET() {
@@ -14,14 +14,14 @@ export async function GET() {
     .order('created_at', { ascending: false })
     .limit(10)
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return NextResponse.json({ error: '처리 중 오류가 발생했습니다.' }, { status: 500 })
 
   const { count, error: countError } = await supabase
     .from('notifications')
     .select('id', { count: 'exact', head: true })
     .eq('is_read', false)
 
-  if (countError) return NextResponse.json({ error: countError.message }, { status: 500 })
+  if (countError) return NextResponse.json({ error: '처리 중 오류가 발생했습니다.' }, { status: 500 })
 
   return NextResponse.json({
     notifications: data ?? [],
@@ -44,7 +44,7 @@ export async function PATCH(request: Request) {
       .eq('user_id', user.id)
       .eq('is_read', false)
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (error) return NextResponse.json({ error: '처리 중 오류가 발생했습니다.' }, { status: 500 })
     return NextResponse.json({ success: true })
   }
 
@@ -56,7 +56,7 @@ export async function PATCH(request: Request) {
       .eq('is_read', false)
       .in('type', types)
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (error) return NextResponse.json({ error: '처리 중 오류가 발생했습니다.' }, { status: 500 })
     return NextResponse.json({ success: true })
   }
 
@@ -70,6 +70,6 @@ export async function PATCH(request: Request) {
     .eq('id', id)
     .eq('user_id', user.id)
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return NextResponse.json({ error: '처리 중 오류가 발생했습니다.' }, { status: 500 })
   return NextResponse.json({ success: true })
 }

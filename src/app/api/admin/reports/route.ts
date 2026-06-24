@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+﻿import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { NextResponse } from 'next/server'
 
@@ -32,7 +32,7 @@ export async function GET(request: Request) {
   if (organization !== 'all') query = query.eq('organization', organization)
 
   const { data, error } = await query
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return NextResponse.json({ error: '처리 중 오류가 발생했습니다.' }, { status: 500 })
 
   const list = data ?? []
   const authorIds = [...new Set(list.map((r: { user_id: string }) => r.user_id).filter(Boolean))]

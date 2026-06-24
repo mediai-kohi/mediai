@@ -1,4 +1,4 @@
-import * as XLSX from 'xlsx'
+import ExcelJS from 'exceljs'
 import {
   WeeklyContent,
   KPI_LABELS, ACTIVITY_LABELS,
@@ -16,14 +16,25 @@ export interface ReportDownloadData {
 // Excel
 // ─────────────────────────────────────────────────
 
-export function downloadReportExcel(report: ReportDownloadData) {
-  const wb = XLSX.utils.book_new()
+export async function downloadReportExcel(report: ReportDownloadData) {
+  const wb = new ExcelJS.Workbook()
+  const ws = wb.addWorksheet('주간보고서')
+  ;[22, 28, 28, 18, 14].forEach((w, i) => { ws.getColumn(i + 1).width = w })
   const rows = buildWeeklyRows(report)
-  const ws = XLSX.utils.aoa_to_sheet(rows)
-  ws['!cols'] = [{ wch: 22 }, { wch: 28 }, { wch: 28 }, { wch: 18 }, { wch: 14 }]
-  XLSX.utils.book_append_sheet(wb, ws, '주간보고서')
+  for (const row of rows) ws.addRow(row)
+  const buffer = await wb.xlsx.writeBuffer()
+  const blob = new Blob([buffer as ArrayBuffer], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
   const safe = report.period_label.replace(/[/\\:*?"<>|]/g, '_')
-  XLSX.writeFile(wb, `${report.organization}_${safe}.xlsx`)
+  a.download = `${report.organization}_${safe}.xlsx`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
 }
 
 function buildWeeklyRows(report: ReportDownloadData): (string | number)[][] {

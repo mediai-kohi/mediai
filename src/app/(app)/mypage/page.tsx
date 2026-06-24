@@ -44,8 +44,9 @@ export default function MyPage() {
       setPwError('새 비밀번호가 일치하지 않습니다.')
       return
     }
-    if (pwForm.next.length < 6) {
-      setPwError('새 비밀번호는 6자 이상이어야 합니다.')
+    const PW_PATTERN = /^(?=.*[a-zA-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]).{8,}$/
+    if (!PW_PATTERN.test(pwForm.next)) {
+      setPwError('비밀번호는 영문·숫자·특수문자를 포함한 8자 이상이어야 합니다.')
       return
     }
 
@@ -135,7 +136,7 @@ export default function MyPage() {
               value={pwForm.next}
               onChange={(e) => setPwForm({ ...pwForm, next: e.target.value })}
               required
-              placeholder="6자 이상"
+              placeholder="영문·숫자·특수문자 포함 8자 이상"
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
             />
           </div>

@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+﻿import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { NextResponse } from 'next/server'
 
@@ -60,7 +60,7 @@ export async function GET(request: Request) {
   }
 
   const { data, error } = await query
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return NextResponse.json({ error: '처리 중 오류가 발생했습니다.' }, { status: 500 })
   return NextResponse.json(data ?? [])
 }
 
@@ -94,7 +94,7 @@ export async function DELETE(request: Request) {
       }
     }
     const { error } = await query
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (error) return NextResponse.json({ error: '처리 중 오류가 발생했습니다.' }, { status: 500 })
   } else {
     // 제목 기반 삭제: 같은 기관 사용자는 기관 단위 삭제 허용
     let titleQuery = admin.from('events').delete().eq('title', title!)
@@ -106,7 +106,7 @@ export async function DELETE(request: Request) {
       }
     }
     const { error } = await titleQuery
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (error) return NextResponse.json({ error: '처리 중 오류가 발생했습니다.' }, { status: 500 })
   }
 
   return NextResponse.json({ ok: true })
@@ -160,7 +160,7 @@ export async function PATCH(request: Request) {
   }
 
   const { data: futureEvents, error: fetchError } = await selectQuery
-  if (fetchError) return NextResponse.json({ error: fetchError.message }, { status: 500 })
+  if (fetchError) return NextResponse.json({ error: '처리 중 오류가 발생했습니다.' }, { status: 500 })
   if (!futureEvents || futureEvents.length === 0) {
     return NextResponse.json({ ok: true, updated: 0 })
   }
@@ -258,6 +258,6 @@ export async function POST(request: Request) {
     .select()
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return NextResponse.json({ error: '처리 중 오류가 발생했습니다.' }, { status: 500 })
   return NextResponse.json(data)
 }

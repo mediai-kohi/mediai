@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { NextResponse } from 'next/server'
-import * as XLSX from 'xlsx'
+import ExcelJS from 'exceljs'
 import type { WeeklySummaryData } from '@/lib/weeklySummary'
 import {
   KPI_LABELS, ACTIVITY_LABELS,
@@ -130,7 +130,7 @@ export async function GET(
     reportMap.set(r.id, r.content as WeeklyContent)
   }
 
-  const wb = XLSX.utils.book_new()
+  const wb = new ExcelJS.Workbook()
 
   // ── 시트 1: 전체 요약 ──
   const summaryRows: (string | number)[][] = [
@@ -146,9 +146,9 @@ export async function GET(
       }),
     ]),
   ]
-  const summarySheet = XLSX.utils.aoa_to_sheet(summaryRows)
-  summarySheet['!cols'] = [{ wch: 18 }, { wch: 8 }, ...KPI_LABELS.map(() => ({ wch: 22 }))]
-  XLSX.utils.book_append_sheet(wb, summarySheet, '전체요약')
+  const summarySheet = wb.addWorksheet('전체요약')
+  ;[18, 8, ...KPI_LABELS.map(() => 22)].forEach((w, i) => { summarySheet.getColumn(i + 1).width = w })
+  for (const row of summaryRows) summarySheet.addRow(row)
 
   // ── 기관별 시트 ──
   for (const o of snapshot.org_statuses) {
@@ -157,15 +157,14 @@ export async function GET(
     if (!content) continue
 
     const rows = buildOrgSheet(o.org, periodLabel, content)
-    const ws = XLSX.utils.aoa_to_sheet(rows)
-    ws['!cols'] = [{ wch: 22 }, { wch: 28 }, { wch: 28 }, { wch: 18 }, { wch: 14 }]
-
     // Excel 시트명: 최대 31자, 특수문자 제거
     const sheetName = o.org.replace(/[/\\?*[\]:]/g, '').slice(0, 31)
-    XLSX.utils.book_append_sheet(wb, ws, sheetName)
+    const ws = wb.addWorksheet(sheetName)
+    ;[22, 28, 28, 18, 14].forEach((w, i) => { ws.getColumn(i + 1).width = w })
+    for (const row of rows) ws.addRow(row)
   }
 
-  const buf = Buffer.from(XLSX.write(wb, { type: 'array', bookType: 'xlsx' }) as ArrayBuffer)
+  const buf = Buffer.from(await wb.xlsx.writeBuffer())
   const safeName = periodLabel.replace(/[/\\:*?"<>|]/g, '_')
 
   return new Response(new Uint8Array(buf), {

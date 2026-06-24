@@ -53,7 +53,7 @@ const withPWA = require('next-pwa')({
 
 const nextConfig: NextConfig = {
   allowedDevOrigins: ['172.24.35.135'],
-  serverExternalPackages: ['pdfjs-dist', 'canvas', 'pdf-parse'],
+  serverExternalPackages: ['pdfjs-dist', 'canvas', 'pdf-parse', 'file-type', 'exceljs'],
   async headers() {
     return [
       {

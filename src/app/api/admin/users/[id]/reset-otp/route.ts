@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+﻿import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { NextResponse } from 'next/server'
 
@@ -19,7 +19,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   const { admin } = ctx
 
   const { data, error: listError } = await admin.auth.admin.mfa.listFactors({ userId: id })
-  if (listError) return NextResponse.json({ error: listError.message }, { status: 500 })
+  if (listError) return NextResponse.json({ error: '처리 중 오류가 발생했습니다.' }, { status: 500 })
 
   const totpFactors = data?.factors?.filter((f) => f.factor_type === 'totp') ?? []
   if (totpFactors.length === 0) {
@@ -28,7 +28,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
 
   for (const factor of totpFactors) {
     const { error } = await admin.auth.admin.mfa.deleteFactor({ userId: id, id: factor.id })
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (error) return NextResponse.json({ error: '처리 중 오류가 발생했습니다.' }, { status: 500 })
   }
 
   return NextResponse.json({ success: true })

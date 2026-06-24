@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+﻿import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { NextResponse } from 'next/server'
 
@@ -44,7 +44,7 @@ export async function GET(request: Request) {
   if (organization !== 'all')  query = query.eq('organization', organization)
 
   const { data, count, error } = await query
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return NextResponse.json({ error: '처리 중 오류가 발생했습니다.' }, { status: 500 })
 
   // 작성자 프로필을 별도 쿼리로 조회 (FK join 방식 대신 명시적 lookup)
   const userIds = [...new Set((data ?? []).map((row: Record<string, unknown>) => row.user_id as string).filter(Boolean))]

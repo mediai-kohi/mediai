@@ -50,6 +50,42 @@ export async function checkRateLimit(
   }
 }
 
+// IP 기반 로그인 시도 제한 (로그인 라우트용)
+export async function checkLoginRateLimit(
+  ip: string,
+  limit = 5,
+  windowMs = 15 * 60 * 1000
+): Promise<RateLimitResult> {
+  const admin = createAdminClient()
+  const since = new Date(Date.now() - windowMs).toISOString()
+  const resetAt = new Date(Date.now() + windowMs)
+
+  const { count, error: countError } = await admin
+    .from('login_attempt_log')
+    .select('*', { count: 'exact', head: true })
+    .eq('ip_address', ip)
+    .gte('created_at', since)
+
+  if (countError) {
+    console.error('[rate-limit] login count error:', countError)
+    return { allowed: true, remaining: limit, limit, resetAt }
+  }
+
+  const used = count ?? 0
+  if (used >= limit) {
+    return { allowed: false, remaining: 0, limit, resetAt }
+  }
+
+  await admin.from('login_attempt_log').insert({ ip_address: ip })
+
+  return {
+    allowed: true,
+    remaining: Math.max(0, limit - used - 1),
+    limit,
+    resetAt,
+  }
+}
+
 export function rateLimitResponse(result: RateLimitResult): Response {
   return new Response(
     JSON.stringify({

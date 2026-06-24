@@ -1,7 +1,12 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { checkLoginRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 
 export async function POST(request: NextRequest) {
+  const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+  const rl = await checkLoginRateLimit(ip)
+  if (!rl.allowed) return rateLimitResponse(rl)
+
   const { user_code, password } = await request.json()
 
   if (!user_code || !password) {

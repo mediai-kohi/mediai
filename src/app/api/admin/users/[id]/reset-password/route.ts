@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+﻿import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { NextResponse } from 'next/server'
 import { randomBytes } from 'crypto'
@@ -22,7 +22,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   const temp_password = randomBytes(9).toString('base64url')
 
   const { error } = await admin.auth.admin.updateUserById(id, { password: temp_password })
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return NextResponse.json({ error: '처리 중 오류가 발생했습니다.' }, { status: 500 })
 
   return NextResponse.json({ temp_password })
 }

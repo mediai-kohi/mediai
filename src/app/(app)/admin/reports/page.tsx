@@ -157,7 +157,7 @@ export default function AdminReportsPage() {
 
   const handleExcel = async (id: string) => {
     const d = await fetchReportData(id)
-    if (d) downloadReportExcel(d)
+    if (d) await downloadReportExcel(d)
   }
 
   const handlePdf = async (id: string) => {

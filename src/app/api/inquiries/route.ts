@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+﻿import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { notifyAdmins } from '@/lib/notifications/notify'
 import { NextResponse } from 'next/server'
@@ -50,7 +50,7 @@ export async function GET(request: Request) {
   }
 
   const { data, count, error } = await query
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return NextResponse.json({ error: '처리 중 오류가 발생했습니다.' }, { status: 500 })
 
   // organization은 inquiries 테이블에 직접 저장되므로 author 객체로 변환
   // 관리자가 아닌 경우, 본인 기관 이외의 글은 기관명 미표시
@@ -106,7 +106,7 @@ export async function POST(request: Request) {
     .single()
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ error: '처리 중 오류가 발생했습니다.' }, { status: 500 })
   }
 
   if (Array.isArray(attachments) && attachments.length > 0) {

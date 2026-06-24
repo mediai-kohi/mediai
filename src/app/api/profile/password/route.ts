@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+﻿import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient as createRawClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
@@ -13,6 +13,14 @@ export async function POST(request: Request) {
 
   if (!currentPassword || !newPassword) {
     return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
+  }
+
+  const PW_PATTERN = /^(?=.*[a-zA-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]).{8,}$/
+  if (!PW_PATTERN.test(newPassword)) {
+    return NextResponse.json(
+      { error: '비밀번호는 영문·숫자·특수문자를 포함한 8자 이상이어야 합니다.' },
+      { status: 400 }
+    )
   }
 
   // 현재 비밀번호 검증 — 브라우저 세션에 영향 없는 별도 클라이언트 사용
@@ -35,6 +43,6 @@ export async function POST(request: Request) {
     password: newPassword,
   })
 
-  if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 })
+  if (updateError) return NextResponse.json({ error: '처리 중 오류가 발생했습니다.' }, { status: 500 })
   return NextResponse.json({ success: true })
 }
