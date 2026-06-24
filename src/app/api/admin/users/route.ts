@@ -2,6 +2,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { NextResponse } from 'next/server'
 import { randomBytes } from 'node:crypto'
+import { insertAuditLog } from '@/lib/audit'
 
 async function requireAdmin() {
   const supabase = await createClient()
@@ -70,7 +71,8 @@ export async function POST(request: Request) {
   })
 
   if (authError || !authUser.user) {
-    return NextResponse.json({ error: authError?.message ?? '사용자 생성 실패' }, { status: 500 })
+    console.error('[api/admin/users POST]', authError?.message)
+    return NextResponse.json({ error: '처리 중 오류가 발생했습니다.' }, { status: 500 })
   }
 
   const { error: profileError } = await admin.from('profiles').insert({
@@ -85,6 +87,14 @@ export async function POST(request: Request) {
     await admin.auth.admin.deleteUser(authUser.user.id).catch(() => null)
     return NextResponse.json({ error: '처리 중 오류가 발생했습니다.' }, { status: 500 })
   }
+
+  await insertAuditLog({
+    action: 'admin.user.create',
+    userId: ctx.user.id,
+    targetType: 'user',
+    targetId: authUser.user.id,
+    metadata: { user_code, organization },
+  })
 
   return NextResponse.json({ user_code, temp_password }, { status: 201 })
 }

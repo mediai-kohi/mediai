@@ -2,6 +2,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { notifyAdmins } from '@/lib/notifications/notify'
 import { NextResponse } from 'next/server'
+import { insertAuditLog } from '@/lib/audit'
 
 export async function GET() {
   const supabase = await createClient()
@@ -39,6 +40,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -127,6 +129,15 @@ export async function POST(request: Request) {
       '[' + (profile.organization ?? '') + '] 주간보고 제출 (' + period_start + ' ~ ' + period_end + ')',
       data.id
     ).catch((err) => console.error('[notify new_report]', err))
+
+    await insertAuditLog({
+      action: 'report.submit',
+      userId: user.id,
+      targetType: 'report',
+      targetId: data.id,
+      ipAddress: ip,
+      metadata: { type, period_label, organization: profile.organization },
+    })
   }
 
   return NextResponse.json({ id: data.id })

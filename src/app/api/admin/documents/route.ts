@@ -42,6 +42,12 @@ export async function POST(request: Request) {
   const storagePath = `${Date.now()}_${safeName}`
   const buffer = Buffer.from(await file.arrayBuffer())
 
+  const { fileTypeFromBuffer } = await import('file-type')
+  const detected = await fileTypeFromBuffer(buffer)
+  if (detected?.mime !== 'application/pdf') {
+    return NextResponse.json({ error: 'PDF 파일만 업로드 가능합니다.' }, { status: 400 })
+  }
+
   const { error: uploadError } = await admin.storage
     .from('documents')
     .upload(storagePath, buffer, { contentType: 'application/pdf' })

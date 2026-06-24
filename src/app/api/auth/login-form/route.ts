@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { checkLoginRateLimit } from '@/lib/rate-limit'
+import { insertAuditLog } from '@/lib/audit'
 
 export async function POST(request: NextRequest) {
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
@@ -41,9 +42,13 @@ export async function POST(request: NextRequest) {
     }
   )
 
-  const { error } = await supabase.auth.signInWithPassword({ email, password })
+  const { data: authData, error } = await supabase.auth.signInWithPassword({ email, password })
 
-  if (error) return NextResponse.redirect(redirectUrl)
+  if (error) {
+    await insertAuditLog({ action: 'auth.login.fail', ipAddress: ip, metadata: { user_code } })
+    return NextResponse.redirect(redirectUrl)
+  }
 
+  await insertAuditLog({ action: 'auth.login.success', userId: authData.user?.id, ipAddress: ip })
   return successResponse
 }

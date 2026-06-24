@@ -4,6 +4,8 @@ CREATE TABLE IF NOT EXISTS public.login_attempt_log (
   created_at  timestamptz NOT NULL DEFAULT now()
 );
 
+ALTER TABLE public.login_attempt_log ENABLE ROW LEVEL SECURITY;
+
 CREATE INDEX IF NOT EXISTS login_attempt_log_ip_idx
   ON public.login_attempt_log (ip_address, created_at DESC);
 

@@ -2,6 +2,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { notifyUser } from '@/lib/notifications/notify'
 import { NextResponse } from 'next/server'
+import { insertAuditLog } from '@/lib/audit'
 import {
   computeWeeklySummary,
   getMonday,
@@ -67,7 +68,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const { id } = await params
   const ctx = await requireAdmin()
   if (!ctx) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  const { admin } = ctx
+  const { user, admin } = ctx
+  const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
 
   const body = await request.json()
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() }
@@ -83,6 +85,16 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     .single()
 
   if (error) return NextResponse.json({ error: '처리 중 오류가 발생했습니다.' }, { status: 500 })
+
+  if (body.status === 'approved') {
+    await insertAuditLog({
+      action: 'report.approve',
+      userId: user.id,
+      targetType: 'report',
+      targetId: id,
+      ipAddress: ip,
+    })
+  }
 
   // 승인 시 해당 주차 전 기관 완료 여부 확인 → 자동 확정
   if (body.status === 'approved' && (data as Record<string, unknown>).type === 'weekly') {
@@ -169,6 +181,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         id
       ).catch((err) => console.error('[notify report_revision]', err))
     }
+    await insertAuditLog({
+      action: 'report.revision_request',
+      userId: user.id,
+      targetType: 'report',
+      targetId: id,
+      ipAddress: ip,
+      metadata: { revision_comment: body.revision_comment },
+    })
   }
 
   return NextResponse.json({ ...data, author: author ?? null })

@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { checkLoginRateLimit, rateLimitResponse } from '@/lib/rate-limit'
+import { insertAuditLog } from '@/lib/audit'
 
 export async function POST(request: NextRequest) {
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
@@ -33,11 +34,13 @@ export async function POST(request: NextRequest) {
     }
   )
 
-  const { error } = await supabase.auth.signInWithPassword({ email, password })
+  const { data: authData, error } = await supabase.auth.signInWithPassword({ email, password })
 
   if (error) {
+    await insertAuditLog({ action: 'auth.login.fail', ipAddress: ip, metadata: { user_code: user_code.trim().toUpperCase() } })
     return NextResponse.json({ error: '사용자 ID 또는 비밀번호가 올바르지 않습니다.' }, { status: 400 })
   }
 
+  await insertAuditLog({ action: 'auth.login.success', userId: authData.user?.id, ipAddress: ip })
   return response
 }
