@@ -247,13 +247,18 @@ export default async function WeeklySummaryPrintPage({
               {otherOrgs.length > 0 && (
                 <div style={{ marginTop: 10, background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 12, padding: '12px 16px' }}>
                   <p style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', margin: '0 0 8px' }}>기타 기관 현황</p>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {otherOrgs.map((d: AiInstitutionDetail, i: number) => (
-                      <div key={i} style={{ background: 'white', border: '1px solid #e5e7eb', borderRadius: 8, padding: '8px 12px' }}>
-                        <p style={{ fontSize: 11, fontWeight: 600, color: '#1f2937', margin: 0 }}>{d.organization}</p>
-                        <p style={{ fontSize: 10, color: '#9ca3af', marginTop: 2, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {d.kpi_status}
-                        </p>
+                      <div key={i} style={{ background: 'white', border: '1px solid #e5e7eb', borderRadius: 8, padding: '10px 12px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: d.current_week ? 5 : 0 }}>
+                          <p style={{ fontSize: 11, fontWeight: 700, color: '#1f2937', margin: 0 }}>{d.organization}</p>
+                          {d.kpi_status && (
+                            <span style={{ fontSize: 9, color: '#6b7280', background: '#f3f4f6', borderRadius: 4, padding: '1px 6px', flexShrink: 0 }}>{d.kpi_status}</span>
+                          )}
+                        </div>
+                        {d.current_week && (
+                          <p style={{ fontSize: 10, color: '#4b5563', lineHeight: 1.6, margin: 0 }}>{d.current_week}</p>
+                        )}
                       </div>
                     ))}
                   </div>
