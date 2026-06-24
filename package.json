@@ -41,5 +41,9 @@
     "docx": "^9.6.1",
     "tailwindcss": "^4",
     "typescript": "^5"
+  },
+  "overrides": {
+    "postcss": "^8.5.10",
+    "serialize-javascript": "^7.0.3"
   }
 }

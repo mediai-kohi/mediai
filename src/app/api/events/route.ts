@@ -203,7 +203,10 @@ export async function PATCH(request: Request) {
   )
 
   const firstErr = updateResults.find(r => r.error)
-  if (firstErr?.error) return NextResponse.json({ error: firstErr.error.message }, { status: 500 })
+  if (firstErr?.error) {
+    console.error('[events] update error:', firstErr.error.message)
+    return NextResponse.json({ error: '처리 중 오류가 발생했습니다.' }, { status: 500 })
+  }
 
   return NextResponse.json({ ok: true, updated: futureEvents.length })
 }
