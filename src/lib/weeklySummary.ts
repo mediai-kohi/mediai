@@ -268,7 +268,7 @@ export function computeWeeklySummary(
   )
 
   const kpi_totals: KpiTotal[] = KPI_LABELS.map((label, i) => {
-    const isAvg = i === 2 || i === 3 // 수료율, 만족도는 평균
+    const isAvg = i === 2 || i === 3 || i === 4 // 수료율, 만족도, 지역확산은 평균
     const values = activeOrgs
       .map((o) => parseNum(o.kpi_rows?.[i]?.actual))
       .filter((v) => v > 0)

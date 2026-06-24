@@ -190,3 +190,60 @@ export async function POST(request: Request) {
 
   return NextResponse.json({ ...confirmedSummary, id: savedId })
 }
+
+export async function PATCH(request: Request) {
+  const ctx = await requireAdmin()
+  if (!ctx) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  const { admin } = ctx
+
+  const body = await request.json() as { year?: number; week?: number }
+  const { year, week } = body
+
+  let weekStart: Date
+  if (year && week) {
+    const jan4 = new Date(year, 0, 4)
+    const startOfWeek1 = new Date(jan4)
+    startOfWeek1.setDate(jan4.getDate() - ((jan4.getDay() + 6) % 7))
+    weekStart = new Date(startOfWeek1)
+    weekStart.setDate(startOfWeek1.getDate() + (week - 1) * 7)
+  } else {
+    weekStart = getWeekStartForDisplay(new Date())
+  }
+
+  const weekEnd = addDays(weekStart, 6)
+  const startStr = formatDateOnly(weekStart)
+  const endStr = formatDateOnly(weekEnd)
+  const { year: y, week_number: w } = getISOWeekInfo(weekStart)
+
+  const { data: existingRow } = await admin
+    .from('weekly_summaries')
+    .select('id')
+    .eq('year', y)
+    .eq('week_number', w)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (!existingRow) {
+    return NextResponse.json({ error: '해당 주차 요약이 없습니다.' }, { status: 404 })
+  }
+
+  const { data: weeklyReports } = await admin
+    .from('reports')
+    .select('id, organization, type, status, period_start, period_end, content, submitted_at, approved_at, created_at')
+    .eq('type', 'weekly')
+    .gte('period_start', startStr)
+    .lte('period_start', endStr)
+    .in('status', ['submitted', 'resubmitted', 'approved', 'revision_requested'])
+
+  const summary = computeWeeklySummary(weeklyReports ?? [], weekStart, 'partial', null)
+
+  const { error } = await admin
+    .from('weekly_summaries')
+    .update({ status: 'partial', confirmed_at: null, snapshot: summary, updated_at: new Date().toISOString() })
+    .eq('id', existingRow.id)
+
+  if (error) return NextResponse.json({ error: '처리 중 오류가 발생했습니다.' }, { status: 500 })
+
+  return NextResponse.json(summary)
+}

@@ -301,6 +301,7 @@ export default function WeeklySummarySection({ initialData, aiReport }: Props) {
   const [data, setData] = useState<WeeklySummaryData | null>(initialData)
   const [selectedOrg, setSelectedOrg] = useState<OrgStatus | null>(null)
   const [confirming, setConfirming] = useState(false)
+  const [unconfirming, setUnconfirming] = useState(false)
   const [archiveKey, setArchiveKey] = useState(0)
 
   if (!data) {
@@ -309,6 +310,27 @@ export default function WeeklySummarySection({ initialData, aiReport }: Props) {
         주간 실적 데이터를 불러올 수 없습니다.
       </div>
     )
+  }
+
+  const handleUnconfirm = async () => {
+    if (!confirm(`${data.period_label} 주간 실적 요약의 확정을 취소하시겠습니까?\n취소 후 내용을 수정하고 다시 확정할 수 있습니다.`)) return
+    setUnconfirming(true)
+    try {
+      const res = await fetch('/api/admin/weekly-summary', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ year: data.year, week: data.week_number }),
+      })
+      if (res.ok) {
+        setData(await res.json() as WeeklySummaryData)
+        setArchiveKey(k => k + 1)
+      } else {
+        const err = await res.json() as { error: string }
+        alert(err.error)
+      }
+    } finally {
+      setUnconfirming(false)
+    }
   }
 
   const handleConfirm = async (force: boolean) => {
@@ -362,6 +384,15 @@ export default function WeeklySummarySection({ initialData, aiReport }: Props) {
           )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          {isConfirmed && (
+            <button
+              onClick={handleUnconfirm}
+              disabled={unconfirming}
+              className="px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg transition-colors disabled:opacity-50"
+            >
+              {unconfirming ? '취소 중...' : '확정 취소'}
+            </button>
+          )}
           {!isConfirmed && data.all_approved && (
             <button
               onClick={() => handleConfirm(false)}
