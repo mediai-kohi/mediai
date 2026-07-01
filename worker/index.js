@@ -10,12 +10,15 @@ self.addEventListener('push', (event) => {
     data: { url: data.url || '/' },
   }
 
+  const badgePromise = self.registration.setAppBadge
+    ? self.registration.setAppBadge().catch(() => {})
+    : Promise.resolve()
+
   event.waitUntil(
-    self.registration.showNotification(title, options).then(() => {
-      if ('setAppBadge' in self.registration) {
-        return self.registration.setAppBadge()
-      }
-    })
+    Promise.all([
+      Promise.resolve(self.registration.showNotification(title, options)),
+      badgePromise,
+    ])
   )
 })
 
