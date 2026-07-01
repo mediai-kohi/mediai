@@ -22,9 +22,23 @@ export async function POST(request: Request) {
 
   const { admin } = ctx
 
-  const { periodStarts, periodLabel, reportType, organization } = await request.json()
+  const body = await request.json().catch(() => null)
+  if (!body) return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
+
+  const { periodStarts, periodLabel, reportType, organization } = body
+
   if (!periodStarts || !Array.isArray(periodStarts) || periodStarts.length === 0) {
     return NextResponse.json({ error: '기간을 선택해주세요.' }, { status: 400 })
+  }
+  if (periodStarts.length > 52) {
+    return NextResponse.json({ error: '기간 선택이 너무 많습니다.' }, { status: 400 })
+  }
+  const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+  if (!periodStarts.every((d: unknown) => typeof d === 'string' && DATE_RE.test(d))) {
+    return NextResponse.json({ error: '잘못된 기간 형식입니다.' }, { status: 400 })
+  }
+  if (periodLabel !== undefined && (typeof periodLabel !== 'string' || periodLabel.length > 200)) {
+    return NextResponse.json({ error: '잘못된 기간 레이블입니다.' }, { status: 400 })
   }
 
   let query = admin
@@ -227,7 +241,22 @@ ${formatted}${budgetText}
   }
 
   const aiData = await aiRes.json()
-  const result = JSON.parse(aiData.choices[0].message.content)
+  let result: Record<string, unknown>
+  try {
+    result = JSON.parse(aiData.choices[0].message.content)
+  } catch {
+    await admin.from('ai_audit_log').insert({
+      user_id: ctx.user.id,
+      endpoint: 'summarize',
+      model: 'gpt-4o-mini',
+      input_chars: prompt.length,
+      output_chars: 0,
+      status: 'error',
+      error_message: 'AI 응답 JSON 파싱 실패',
+      metadata: { periodStarts, organization },
+    })
+    return NextResponse.json({ error: 'AI 응답 처리 중 오류가 발생했습니다.' }, { status: 500 })
+  }
 
   const koSort = (a: { organization: string }, b: { organization: string }) =>
     a.organization.localeCompare(b.organization, 'ko')

@@ -332,8 +332,26 @@ export async function POST(req: Request) {
   const auth = await requireAdmin()
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { result, period } = await req.json() as { result: SummaryResult; period: string }
-  if (!result) return NextResponse.json({ error: 'result required' }, { status: 400 })
+  const body = await req.json().catch(() => null) as { result: SummaryResult; period: string } | null
+  if (!body?.result) return NextResponse.json({ error: 'result required' }, { status: 400 })
+
+  const { result, period } = body
+
+  // 배열 크기 제한 — 과도한 항목으로 인한 OOM 방지
+  const MAX_ROWS = 100
+  if (
+    (Array.isArray(result.institution_progress) && result.institution_progress.length > MAX_ROWS) ||
+    (Array.isArray(result.institution_details) && result.institution_details.length > MAX_ROWS) ||
+    (Array.isArray(result.dashboard) && result.dashboard.length > MAX_ROWS) ||
+    (Array.isArray(result.key_summary) && result.key_summary.length > MAX_ROWS) ||
+    (Array.isArray(result.issues) && result.issues.length > MAX_ROWS) ||
+    (Array.isArray(result.next_week_checklist) && result.next_week_checklist.length > MAX_ROWS)
+  ) {
+    return NextResponse.json({ error: '데이터 항목이 너무 많습니다.' }, { status: 400 })
+  }
+  if (typeof period === 'string' && period.length > 200) {
+    return NextResponse.json({ error: '잘못된 기간 값입니다.' }, { status: 400 })
+  }
 
   const buf = await buildSummaryDocx(result, period ?? '')
   const filename = encodeURIComponent(`AI분석보고서_${(period ?? '').replace(/[,\s]+/g, '_') || '보고서'}.docx`)
