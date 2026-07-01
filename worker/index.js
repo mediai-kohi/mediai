@@ -10,8 +10,8 @@ self.addEventListener('push', (event) => {
     data: { url: data.url || '/' },
   }
 
-  const badgePromise = self.registration.setAppBadge
-    ? self.registration.setAppBadge().catch(() => {})
+  const badgePromise = ('setAppBadge' in navigator)
+    ? navigator.setAppBadge().catch(() => {})
     : Promise.resolve()
 
   event.waitUntil(
@@ -26,8 +26,8 @@ self.addEventListener('notificationclick', (event) => {
   event.notification.close()
   const url = event.notification.data?.url || '/'
 
-  if ('clearAppBadge' in self.registration) {
-    self.registration.clearAppBadge()
+  if ('clearAppBadge' in navigator) {
+    navigator.clearAppBadge()
   }
 
   event.waitUntil(
