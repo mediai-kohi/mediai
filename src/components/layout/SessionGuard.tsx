@@ -41,6 +41,14 @@ export default function SessionGuard() {
     return () => clearInterval(id)
   }, [logout])
 
+  // 앱 포커스 시 앱 아이콘 배지 초기화
+  useEffect(() => {
+    const clear = () => { if ('clearAppBadge' in navigator) navigator.clearAppBadge() }
+    clear()
+    window.addEventListener('focus', clear)
+    return () => window.removeEventListener('focus', clear)
+  }, [])
+
   // 배너 표시 중 1초마다 카운트다운 갱신
   useEffect(() => {
     if (!showBanner) return

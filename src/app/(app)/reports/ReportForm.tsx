@@ -225,6 +225,38 @@ function GhostNumInput({
 // ─────────────────────────────────────────────────
 // GhostTextarea: 이전 보고서 내용을 흐릿하게 표시
 // ─────────────────────────────────────────────────
+function AutoResizeTextarea({
+  value,
+  onChange,
+  rows = 3,
+  placeholder,
+  className,
+}: {
+  value: string
+  onChange: (v: string) => void
+  rows?: number
+  placeholder?: string
+  className?: string
+}) {
+  const ref = useRef<HTMLTextAreaElement>(null)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight}px`
+  }, [value])
+  return (
+    <textarea
+      ref={ref}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      rows={rows}
+      placeholder={placeholder}
+      className={`resize-none overflow-hidden ${className ?? ''}`}
+    />
+  )
+}
+
 function GhostTextarea({
   value,
   onChange,
@@ -242,17 +274,26 @@ function GhostTextarea({
 }) {
   const [focused, setFocused] = useState(false)
   const showGhost = !focused && value === '' && !!ghostText
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  useEffect(() => {
+    const el = textareaRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight}px`
+  }, [value])
 
   return (
     <div className="relative">
       <textarea
+        ref={textareaRef}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
         rows={rows}
         placeholder={showGhost ? '' : placeholder}
-        className={`w-full resize-none ${className ?? ''}`}
+        className={`w-full resize-none overflow-hidden ${className ?? ''}`}
       />
       {showGhost && (
         <div
@@ -550,9 +591,9 @@ function WeeklyFormBody({
                       />
                     </td>
                     <td className={`${TD_BASE} p-0.5`}>
-                      <textarea
+                      <AutoResizeTextarea
                         value={row.note}
-                        onChange={(e) => setActivity(i, { note: e.target.value })}
+                        onChange={(v) => setActivity(i, { note: v })}
                         rows={3}
                         placeholder="비고"
                         className={textareaCls}

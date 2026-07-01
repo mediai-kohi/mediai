@@ -10,12 +10,22 @@ self.addEventListener('push', (event) => {
     data: { url: data.url || '/' },
   }
 
-  event.waitUntil(self.registration.showNotification(title, options))
+  event.waitUntil(
+    self.registration.showNotification(title, options).then(() => {
+      if ('setAppBadge' in self.registration) {
+        return self.registration.setAppBadge()
+      }
+    })
+  )
 })
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
   const url = event.notification.data?.url || '/'
+
+  if ('clearAppBadge' in self.registration) {
+    self.registration.clearAppBadge()
+  }
 
   event.waitUntil(
     clients

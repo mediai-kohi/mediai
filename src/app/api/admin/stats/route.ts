@@ -32,6 +32,7 @@ export async function GET() {
     { count: weeklyReports },
     { count: revisionRequests },
     { count: pendingUsers },
+    { count: pendingReports },
     { data: recentInquiries },
   ] = await Promise.all([
     admin.from('inquiries').select('id', { count: 'exact', head: true }).in('status', ['open', 'in_progress']),
@@ -40,6 +41,7 @@ export async function GET() {
       .lte('submitted_at', sunday.toISOString()),
     admin.from('reports').select('id', { count: 'exact', head: true }).eq('status', 'revision_requested'),
     admin.from('profiles').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
+    admin.from('reports').select('id', { count: 'exact', head: true }).in('status', ['submitted', 'resubmitted']),
     admin.from('inquiries')
       .select('id, title, category, status, organization, created_at, author:profiles!user_id(name)')
       .order('created_at', { ascending: false })
@@ -51,6 +53,7 @@ export async function GET() {
     weeklyReports: weeklyReports ?? 0,
     revisionRequests: revisionRequests ?? 0,
     pendingUsers: pendingUsers ?? 0,
+    pendingReports: pendingReports ?? 0,
     recentInquiries: recentInquiries ?? [],
   })
 }
