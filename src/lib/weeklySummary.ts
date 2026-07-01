@@ -81,7 +81,7 @@ export interface BudgetInfo {
   execution_rate: string
   execution_rate_gov: string
   execution_rate_self: string
-  org_executions: { org: string; executed: number; gov: number; self: number }[]
+  org_executions: { org: string; executed: number; gov: number; self: number; gov_budget: number; self_budget: number }[]
 }
 
 export interface WeeklySummaryData {
@@ -313,7 +313,7 @@ export function computeWeeklySummary(
   })
 
   // 예산 (주간 보고서 최신 1건에서 기관별 집계)
-  const orgExecutions: { org: string; executed: number; gov: number; self: number }[] = []
+  const orgExecutions: { org: string; executed: number; gov: number; self: number; gov_budget: number; self_budget: number }[] = []
   let totalExecuted = 0
   let totalExecutedGov = 0
   let totalExecutedSelf = 0
@@ -331,8 +331,8 @@ export function computeWeeklySummary(
     totalExecuted += sum
     totalExecutedGov += gov
     totalExecutedSelf += self
-    if (sum > 0) {
-      orgExecutions.push({ org, executed: sum, gov, self })
+    if (govBudget > 0 || selfBudget > 0 || sum > 0) {
+      orgExecutions.push({ org, executed: sum, gov, self, gov_budget: govBudget, self_budget: selfBudget })
     }
   }
   const totalBudget = totalBudgetGov + totalBudgetSelf

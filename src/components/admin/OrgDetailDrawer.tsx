@@ -5,12 +5,21 @@ import { KPI_LABELS, HEADLINE_KPI_CONFIG, parseNum } from '@/lib/weeklySummary'
 
 const ACTIVITY_LABELS = ['직무교육', '대외협력 및 홍보', '기타'] as const
 
+interface OrgBudgetExecution {
+  executed: number
+  gov: number
+  self: number
+  gov_budget: number
+  self_budget: number
+}
+
 interface Props {
   org: OrgStatus
+  budgetExecution?: OrgBudgetExecution | null
   onClose: () => void
 }
 
-export default function OrgDetailDrawer({ org, onClose }: Props) {
+export default function OrgDetailDrawer({ org, budgetExecution, onClose }: Props) {
   return (
     <>
       {/* 배경 오버레이 */}
@@ -142,6 +151,45 @@ export default function OrgDetailDrawer({ org, onClose }: Props) {
           ) : (
             <div className="py-12 text-center">
               <p className="text-sm text-gray-400">아직 제출된 보고서가 없습니다.</p>
+            </div>
+          )}
+
+          {/* 예산 집행 현황 */}
+          {budgetExecution && (budgetExecution.gov_budget > 0 || budgetExecution.self_budget > 0 || budgetExecution.executed > 0) && (
+            <div>
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">예산 집행 현황</h3>
+              <div className="border border-gray-200 rounded-lg overflow-hidden">
+                <div className="grid grid-cols-2 divide-x divide-gray-200">
+                  <div className="bg-blue-50 p-3">
+                    <p className="text-[10px] font-semibold text-blue-500 tracking-wide mb-1.5">국고보조금</p>
+                    <p className="text-sm font-bold text-gray-900">{budgetExecution.gov.toLocaleString()}원</p>
+                    {budgetExecution.gov_budget > 0 && (
+                      <>
+                        <p className="text-[11px] text-gray-400 mt-0.5">예산 {budgetExecution.gov_budget.toLocaleString()}원</p>
+                        <p className="text-[11px] font-semibold text-blue-600 mt-1">
+                          {((budgetExecution.gov / budgetExecution.gov_budget) * 100).toFixed(1)}% 집행
+                        </p>
+                      </>
+                    )}
+                  </div>
+                  <div className="bg-emerald-50 p-3">
+                    <p className="text-[10px] font-semibold text-emerald-600 tracking-wide mb-1.5">자기부담금</p>
+                    <p className="text-sm font-bold text-gray-900">{budgetExecution.self.toLocaleString()}원</p>
+                    {budgetExecution.self_budget > 0 && (
+                      <>
+                        <p className="text-[11px] text-gray-400 mt-0.5">예산 {budgetExecution.self_budget.toLocaleString()}원</p>
+                        <p className="text-[11px] font-semibold text-emerald-600 mt-1">
+                          {((budgetExecution.self / budgetExecution.self_budget) * 100).toFixed(1)}% 집행
+                        </p>
+                      </>
+                    )}
+                  </div>
+                </div>
+                <div className="border-t border-gray-200 bg-gray-50 px-3 py-2.5 flex items-center justify-between">
+                  <span className="text-xs text-gray-500">합계 집행액</span>
+                  <span className="text-sm font-bold text-gray-900">{budgetExecution.executed.toLocaleString()}원</span>
+                </div>
+              </div>
             </div>
           )}
         </div>

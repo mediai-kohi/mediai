@@ -300,6 +300,7 @@ interface Props {
 export default function WeeklySummarySection({ initialData, aiReport }: Props) {
   const [data, setData] = useState<WeeklySummaryData | null>(initialData)
   const [selectedOrg, setSelectedOrg] = useState<OrgStatus | null>(null)
+  const [selectedOrgBudget, setSelectedOrgBudget] = useState<WeeklySummaryData['budget']['org_executions'][number] | null>(null)
   const [confirming, setConfirming] = useState(false)
   const [unconfirming, setUnconfirming] = useState(false)
   const [archiveKey, setArchiveKey] = useState(0)
@@ -351,6 +352,11 @@ export default function WeeklySummarySection({ initialData, aiReport }: Props) {
     } finally {
       setConfirming(false)
     }
+  }
+
+  const openOrgDetail = (orgStatus: OrgStatus) => {
+    setSelectedOrg(orgStatus)
+    setSelectedOrgBudget(data.budget.org_executions.find(e => e.org === orgStatus.org) ?? null)
   }
 
   const isConfirmed = data.status === 'confirmed'
@@ -469,7 +475,7 @@ export default function WeeklySummarySection({ initialData, aiReport }: Props) {
                   <AiOrgCard
                     key={d.organization}
                     detail={d}
-                    onClick={orgStatus ? () => setSelectedOrg(orgStatus) : undefined}
+                    onClick={orgStatus ? () => openOrgDetail(orgStatus) : undefined}
                   />
                 )
               })}
@@ -483,7 +489,7 @@ export default function WeeklySummarySection({ initialData, aiReport }: Props) {
                     return orgStatus ? (
                       <button
                         key={d.organization}
-                        onClick={() => setSelectedOrg(orgStatus)}
+                        onClick={() => openOrgDetail(orgStatus)}
                         className="bg-white border border-gray-200 rounded-lg px-3 py-2 min-w-0 text-left hover:shadow-sm hover:border-gray-300 transition-all cursor-pointer"
                       >
                         <p className="text-xs font-semibold text-gray-800">{d.organization}</p>
@@ -504,7 +510,7 @@ export default function WeeklySummarySection({ initialData, aiReport }: Props) {
           <>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {activeOrgs.map((org) => (
-                <OrgCard key={org.org} org={org} onClick={() => setSelectedOrg(org)} />
+                <OrgCard key={org.org} org={org} onClick={() => openOrgDetail(org)} />
               ))}
             </div>
             {monitoringOrgs.length > 0 && (
@@ -514,7 +520,7 @@ export default function WeeklySummarySection({ initialData, aiReport }: Props) {
                   {monitoringOrgs.map((org) => (
                     <button
                       key={org.org}
-                      onClick={() => setSelectedOrg(org)}
+                      onClick={() => openOrgDetail(org)}
                       className="text-left border border-orange-200 bg-orange-50 rounded-lg px-4 py-3 hover:bg-orange-100 transition-colors"
                     >
                       <p className="text-sm font-medium text-gray-800">{org.org}</p>
@@ -584,7 +590,7 @@ export default function WeeklySummarySection({ initialData, aiReport }: Props) {
               <div>
                 <p className="text-xs font-medium text-gray-600 mb-2">기관별 집행 내역</p>
                 <div className="space-y-2">
-                  {data.budget.org_executions.map((e) => (
+                  {data.budget.org_executions.filter(e => e.executed > 0).map((e) => (
                     <div key={e.org} className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-1.5 pt-0.5">
                         <span className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0" />
@@ -648,7 +654,8 @@ export default function WeeklySummarySection({ initialData, aiReport }: Props) {
       {selectedOrg && (
         <OrgDetailDrawer
           org={selectedOrg}
-          onClose={() => setSelectedOrg(null)}
+          budgetExecution={selectedOrgBudget}
+          onClose={() => { setSelectedOrg(null); setSelectedOrgBudget(null) }}
         />
       )}
     </div>
