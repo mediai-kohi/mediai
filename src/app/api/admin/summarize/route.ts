@@ -52,6 +52,42 @@ export async function POST(request: Request) {
   const orgCount = allOrgs.length
   const orgList = allOrgs.join(', ')
 
+  // 예산 집계 (기관별)
+  interface BudgetRow { org: string; govBudget: number; govExec: number; selfBudget: number; selfExec: number }
+  const budgetRows: BudgetRow[] = []
+  const parseNum = (v: unknown) => parseFloat(String(v).replace(/[^0-9.]/g, '')) || 0
+  for (const r of reports) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const c = r.content as any
+    if (c?.version !== 2 || r.type !== 'weekly') continue
+    const govBudget = parseNum(c?.budget?.operator_gov?.budget)
+    const govExec = parseNum(c?.budget?.operator_gov?.executed)
+    const selfBudget = parseNum(c?.budget?.operator_self?.budget)
+    const selfExec = parseNum(c?.budget?.operator_self?.executed)
+    if (govBudget > 0 || selfBudget > 0 || govExec > 0 || selfExec > 0) {
+      const existing = budgetRows.find(b => b.org === r.organization)
+      if (existing) {
+        existing.govBudget = Math.max(existing.govBudget, govBudget)
+        existing.selfBudget = Math.max(existing.selfBudget, selfBudget)
+        existing.govExec = Math.max(existing.govExec, govExec)
+        existing.selfExec = Math.max(existing.selfExec, selfExec)
+      } else {
+        budgetRows.push({ org: r.organization, govBudget, govExec, selfBudget, selfExec })
+      }
+    }
+  }
+  const totalGovBudget = budgetRows.reduce((s, b) => s + b.govBudget, 0)
+  const totalSelfBudget = budgetRows.reduce((s, b) => s + b.selfBudget, 0)
+  const totalGovExec = budgetRows.reduce((s, b) => s + b.govExec, 0)
+  const totalSelfExec = budgetRows.reduce((s, b) => s + b.selfExec, 0)
+  const fmtMoney = (n: number) => n > 0 ? `${n.toLocaleString('ko-KR')}원` : '-'
+  const fmtRate = (exec: number, budget: number) => budget > 0 ? `${((exec / budget) * 100).toFixed(1)}%` : '-'
+  const budgetText = budgetRows.length > 0 ? `
+【예산 집행 현황】
+전체: 국고보조금 예산 ${fmtMoney(totalGovBudget)}, 집행 ${fmtMoney(totalGovExec)} (${fmtRate(totalGovExec, totalGovBudget)}) / 자기부담금 예산 ${fmtMoney(totalSelfBudget)}, 집행 ${fmtMoney(totalSelfExec)} (${fmtRate(totalSelfExec, totalSelfBudget)})
+기관별:
+${budgetRows.map(b => `- ${b.org}: 국고 예산 ${fmtMoney(b.govBudget)} / 집행 ${fmtMoney(b.govExec)} (${fmtRate(b.govExec, b.govBudget)}) | 자기부담 예산 ${fmtMoney(b.selfBudget)} / 집행 ${fmtMoney(b.selfExec)} (${fmtRate(b.selfExec, b.selfBudget)})`).join('\n')}` : ''
+
   const formatted = reports.map((r) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const c = r.content as any
@@ -99,7 +135,7 @@ export async function POST(request: Request) {
 【중요】이 보고서에는 총 ${orgCount}개 기관의 데이터가 있습니다: ${orgList}
 institution_progress와 institution_details 배열에는 반드시 위 ${orgCount}개 기관 전체를 빠짐없이 포함해야 합니다. 기관을 생략하거나 누락하지 마세요.
 
-${formatted}
+${formatted}${budgetText}
 
 위 내용을 분석하여 아래 JSON 형식으로 주간 실적보고서를 작성하세요. JSON만 반환:
 {
@@ -145,7 +181,15 @@ ${formatted}
   "institution_details": [
     /* 아래는 예시 1개 — 실제로는 ${orgCount}개 기관 전부 포함: ${orgList} */
     {"organization": "기관명", "kpi_status": "프로그램 운영 N과정, 전문인력 양성 수료 N명·교육중 N명 등 주요 지표 수치", "current_week": "이번 주 실적 2~3문장", "next_week": "차주 계획 1~2문장"}
-  ]
+  ]${budgetRows.length > 0 ? `,
+  "budget_analysis": {
+    "summary": "전체 예산 집행 현황 종합 분석 (2~3문장, 총예산 대비 집행률 및 특이사항)",
+    "org_rows": [
+      /* 예산 데이터가 있는 기관별 1개씩 — 실제 데이터 기반으로 작성 */
+      {"organization": "기관명", "total_budget": "총예산(국고+자기부담)", "total_executed": "총집행액", "execution_rate": "전체 집행률", "assessment": "정상/주의/지연 + 한 문장 평가"}
+    ],
+    "management_point": "예산 집행 관련 핵심 관리 포인트 (1~2문장)"
+  }` : ''}
 }
 
 최종 확인: institution_progress와 institution_details 각각에 ${orgCount}개 기관(${orgList})이 모두 포함되었는지 반드시 확인하세요.`

@@ -70,6 +70,9 @@ interface IssueItem { issue: string; organizations: string; assessment: string; 
 interface ChecklistItem { no: number; item: string; content: string; target: string }
 interface InstitutionDetail { organization: string; kpi_status: string; current_week: string; next_week: string }
 
+interface BudgetOrgRow { organization: string; total_budget: string; total_executed: string; execution_rate: string; assessment: string }
+interface BudgetAnalysis { summary: string; org_rows: BudgetOrgRow[]; management_point: string }
+
 interface SummaryResult {
   overall_assessment: string
   dashboard: DashboardItem[]
@@ -80,6 +83,7 @@ interface SummaryResult {
   next_week_checklist: ChecklistItem[]
   key_message: string
   institution_details: InstitutionDetail[]
+  budget_analysis?: BudgetAnalysis
 }
 
 export default function AdminReportsPage() {
@@ -280,16 +284,32 @@ export default function AdminReportsPage() {
   </table>
 </div>
 
+${result.budget_analysis ? `<div class="sec">
+  <div class="sec-title">5. 예산 집행 현황 분석</div>
+  <div style="background:#eff6ff;border:1px solid #bfdbfe;padding:8px 10px;border-radius:4px;margin-bottom:8px;line-height:1.7">${result.budget_analysis.summary}</div>
+  <table>
+    <thead><tr><th style="width:18%">기관</th><th style="width:20%">총예산</th><th style="width:20%">집행액</th><th style="width:10%">집행률</th><th>평가</th></tr></thead>
+    <tbody>${result.budget_analysis.org_rows.map(r => `<tr><td>${r.organization}</td><td>${r.total_budget}</td><td>${r.total_executed}</td><td style="text-align:center">${r.execution_rate}</td><td>${r.assessment}</td></tr>`).join('')}</tbody>
+  </table>
+  <div style="background:#f0fdf4;border:1px solid #bbf7d0;padding:6px 10px;border-radius:4px;margin-top:6px;font-size:8.5pt;color:#166534">${result.budget_analysis.management_point}</div>
+</div>
+
 <div class="sec">
+  <div class="sec-title">6. 주요 이슈 및 조치 필요사항</div>
+  <table>
+    <thead><tr><th style="width:16%">이슈</th><th style="width:14%">관련기관</th><th>판단</th><th>인재원 조치방향</th></tr></thead>
+    <tbody>${result.issues.map(iss => `<tr><td>${iss.issue}</td><td>${iss.organizations}</td><td>${iss.assessment}</td><td>${iss.action}</td></tr>`).join('')}</tbody>
+  </table>
+</div>` : `<div class="sec">
   <div class="sec-title">5. 주요 이슈 및 조치 필요사항</div>
   <table>
     <thead><tr><th style="width:16%">이슈</th><th style="width:14%">관련기관</th><th>판단</th><th>인재원 조치방향</th></tr></thead>
     <tbody>${result.issues.map(iss => `<tr><td>${iss.issue}</td><td>${iss.organizations}</td><td>${iss.assessment}</td><td>${iss.action}</td></tr>`).join('')}</tbody>
   </table>
-</div>
+</div>`}
 
 <div class="sec">
-  <div class="sec-title">6. 차주 중점 점검 체크리스트</div>
+  <div class="sec-title">${result.budget_analysis ? '7' : '6'}. 차주 중점 점검 체크리스트</div>
   <table>
     <thead><tr><th style="width:4%;text-align:center">순번</th><th style="width:14%">점검항목</th><th>확인내용</th><th style="width:22%">확인대상</th></tr></thead>
     <tbody>${result.next_week_checklist.map(c => `<tr><td style="text-align:center">${c.no}</td><td>${c.item}</td><td>${c.content}</td><td>${c.target}</td></tr>`).join('')}</tbody>
@@ -297,7 +317,7 @@ export default function AdminReportsPage() {
 </div>
 
 <div class="sec">
-  <div class="sec-title">7. 보고용 핵심 메시지</div>
+  <div class="sec-title">${result.budget_analysis ? '8' : '7'}. 보고용 핵심 메시지</div>
   <div class="keymsg">${result.key_message}</div>
 </div>
 
@@ -829,9 +849,52 @@ export default function AdminReportsPage() {
                 </div>
               </div>
 
-              {/* 5. 주요 이슈 및 조치 필요사항 */}
+              {/* 5. 예산 집행 현황 분석 (예산 데이터 있을 때만) */}
+              {sumResult.budget_analysis && (
+                <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                  <div className="bg-gray-800 px-4 py-2.5"><h3 className="text-sm font-bold text-white">5. 예산 집행 현황 분석</h3></div>
+                  <div className="px-4 py-3 bg-blue-50 border-b border-gray-100">
+                    <p className="text-xs text-blue-800 leading-relaxed">{sumResult.budget_analysis.summary}</p>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead><tr className="bg-gray-100">
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 whitespace-nowrap">기관</th>
+                        <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600 whitespace-nowrap">총예산</th>
+                        <th className="px-3 py-2 text-right text-xs font-semibold text-gray-600 whitespace-nowrap">집행액</th>
+                        <th className="px-3 py-2 text-center text-xs font-semibold text-gray-600 whitespace-nowrap">집행률</th>
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">평가</th>
+                      </tr></thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {(sumResult.budget_analysis.org_rows ?? []).map((item, i) => (
+                          <tr key={i}>
+                            <td className="px-3 py-2.5 text-xs font-medium text-gray-900 whitespace-nowrap">{item.organization}</td>
+                            <td className="px-3 py-2.5 text-xs text-gray-600 text-right whitespace-nowrap">{item.total_budget}</td>
+                            <td className="px-3 py-2.5 text-xs font-semibold text-gray-900 text-right whitespace-nowrap">{item.total_executed}</td>
+                            <td className="px-3 py-2.5 text-xs text-center">
+                              <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
+                                parseFloat(item.execution_rate) >= 50 ? 'bg-green-100 text-green-700' :
+                                parseFloat(item.execution_rate) >= 20 ? 'bg-amber-100 text-amber-700' :
+                                'bg-red-100 text-red-600'
+                              }`}>{item.execution_rate}</span>
+                            </td>
+                            <td className="px-3 py-2.5 text-xs text-gray-700">{item.assessment}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  {sumResult.budget_analysis.management_point && (
+                    <div className="px-4 py-2.5 bg-emerald-50 border-t border-gray-100">
+                      <p className="text-xs text-emerald-800">{sumResult.budget_analysis.management_point}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* 6. 주요 이슈 및 조치 필요사항 */}
               <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-                <div className="bg-gray-800 px-4 py-2.5"><h3 className="text-sm font-bold text-white">5. 주요 이슈 및 조치 필요사항</h3></div>
+                <div className="bg-gray-800 px-4 py-2.5"><h3 className="text-sm font-bold text-white">{sumResult.budget_analysis ? '6' : '5'}. 주요 이슈 및 조치 필요사항</h3></div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead><tr className="bg-gray-100">
@@ -854,9 +917,9 @@ export default function AdminReportsPage() {
                 </div>
               </div>
 
-              {/* 6. 차주 중점 점검 체크리스트 */}
+              {/* 7. 차주 중점 점검 체크리스트 */}
               <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-                <div className="bg-gray-800 px-4 py-2.5"><h3 className="text-sm font-bold text-white">6. 차주 중점 점검 체크리스트</h3></div>
+                <div className="bg-gray-800 px-4 py-2.5"><h3 className="text-sm font-bold text-white">{sumResult.budget_analysis ? '7' : '6'}. 차주 중점 점검 체크리스트</h3></div>
                 <table className="w-full text-sm">
                   <thead><tr className="bg-gray-100">
                     <th className="px-3 py-2 text-center text-xs font-semibold text-gray-600 w-10">순번</th>
@@ -877,9 +940,9 @@ export default function AdminReportsPage() {
                 </table>
               </div>
 
-              {/* 7. 보고용 핵심 메시지 */}
+              {/* 8. 보고용 핵심 메시지 */}
               <div className="bg-amber-50 border border-amber-200 rounded-xl p-5">
-                <h3 className="text-sm font-bold text-amber-900 mb-2">7. 보고용 핵심 메시지</h3>
+                <h3 className="text-sm font-bold text-amber-900 mb-2">{sumResult.budget_analysis ? '8' : '7'}. 보고용 핵심 메시지</h3>
                 <p className="text-sm text-amber-800 leading-relaxed whitespace-pre-line">{sumResult.key_message}</p>
               </div>
 
@@ -1058,9 +1121,34 @@ export default function AdminReportsPage() {
                                 </div>
                               </div>
 
-                              {/* 5. 주요 이슈 */}
+                              {/* 5. 예산 집행 현황 분석 (있을 때만) */}
+                              {expandedHistoryData.budget_analysis && (
+                                <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                                  <div className="bg-gray-800 px-3 py-2"><h3 className="text-xs font-bold text-white">5. 예산 집행 현황 분석</h3></div>
+                                  <div className="px-3 py-2 bg-blue-50 border-b border-gray-100">
+                                    <p className="text-[11px] text-blue-800 leading-relaxed">{expandedHistoryData.budget_analysis.summary}</p>
+                                  </div>
+                                  <div className="overflow-x-auto">
+                                    <table className="w-full text-xs">
+                                      <thead><tr className="bg-gray-100"><th className="px-3 py-1.5 text-left font-semibold text-gray-600 whitespace-nowrap">기관</th><th className="px-3 py-1.5 text-right font-semibold text-gray-600 whitespace-nowrap">총예산</th><th className="px-3 py-1.5 text-right font-semibold text-gray-600 whitespace-nowrap">집행액</th><th className="px-3 py-1.5 text-center font-semibold text-gray-600 whitespace-nowrap">집행률</th><th className="px-3 py-1.5 text-left font-semibold text-gray-600">평가</th></tr></thead>
+                                      <tbody className="divide-y divide-gray-100">
+                                        {(expandedHistoryData.budget_analysis.org_rows ?? []).map((item, i) => (
+                                          <tr key={i}><td className="px-3 py-2 font-medium text-gray-900 whitespace-nowrap">{item.organization}</td><td className="px-3 py-2 text-gray-600 text-right whitespace-nowrap">{item.total_budget}</td><td className="px-3 py-2 font-semibold text-gray-900 text-right whitespace-nowrap">{item.total_executed}</td><td className="px-3 py-2 text-center"><span className={`inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-medium ${parseFloat(item.execution_rate) >= 50 ? 'bg-green-100 text-green-700' : parseFloat(item.execution_rate) >= 20 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-600'}`}>{item.execution_rate}</span></td><td className="px-3 py-2 text-gray-700">{item.assessment}</td></tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                  {expandedHistoryData.budget_analysis.management_point && (
+                                    <div className="px-3 py-2 bg-emerald-50 border-t border-gray-100">
+                                      <p className="text-[11px] text-emerald-800">{expandedHistoryData.budget_analysis.management_point}</p>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* 6. 주요 이슈 */}
                               <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-                                <div className="bg-gray-800 px-3 py-2"><h3 className="text-xs font-bold text-white">5. 주요 이슈 및 조치 필요사항</h3></div>
+                                <div className="bg-gray-800 px-3 py-2"><h3 className="text-xs font-bold text-white">{expandedHistoryData.budget_analysis ? '6' : '5'}. 주요 이슈 및 조치 필요사항</h3></div>
                                 <div className="overflow-x-auto">
                                   <table className="w-full text-xs">
                                     <thead><tr className="bg-gray-100"><th className="px-3 py-1.5 text-left font-semibold text-gray-600">이슈</th><th className="px-3 py-1.5 text-left font-semibold text-gray-600 whitespace-nowrap">관련기관</th><th className="px-3 py-1.5 text-left font-semibold text-gray-600">판단</th><th className="px-3 py-1.5 text-left font-semibold text-gray-600">인재원 조치방향</th></tr></thead>
@@ -1073,9 +1161,9 @@ export default function AdminReportsPage() {
                                 </div>
                               </div>
 
-                              {/* 6. 차주 중점 점검 체크리스트 */}
+                              {/* 7. 차주 중점 점검 체크리스트 */}
                               <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-                                <div className="bg-gray-800 px-3 py-2"><h3 className="text-xs font-bold text-white">6. 차주 중점 점검 체크리스트</h3></div>
+                                <div className="bg-gray-800 px-3 py-2"><h3 className="text-xs font-bold text-white">{expandedHistoryData.budget_analysis ? '7' : '6'}. 차주 중점 점검 체크리스트</h3></div>
                                 <table className="w-full text-xs">
                                   <thead><tr className="bg-gray-100"><th className="px-3 py-1.5 text-center font-semibold text-gray-600 w-10">순번</th><th className="px-3 py-1.5 text-left font-semibold text-gray-600 w-28">점검항목</th><th className="px-3 py-1.5 text-left font-semibold text-gray-600">확인내용</th><th className="px-3 py-1.5 text-left font-semibold text-gray-600">확인대상</th></tr></thead>
                                   <tbody className="divide-y divide-gray-100">
@@ -1086,9 +1174,9 @@ export default function AdminReportsPage() {
                                 </table>
                               </div>
 
-                              {/* 7. 보고용 핵심 메시지 */}
+                              {/* 8. 보고용 핵심 메시지 */}
                               <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-                                <h3 className="text-xs font-bold text-amber-900 mb-1.5">7. 보고용 핵심 메시지</h3>
+                                <h3 className="text-xs font-bold text-amber-900 mb-1.5">{expandedHistoryData.budget_analysis ? '8' : '7'}. 보고용 핵심 메시지</h3>
                                 <p className="text-xs text-amber-800 leading-relaxed whitespace-pre-line">{expandedHistoryData.key_message}</p>
                               </div>
 

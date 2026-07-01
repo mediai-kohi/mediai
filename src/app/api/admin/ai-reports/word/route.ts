@@ -16,6 +16,9 @@ interface IssueItem { issue: string; organizations: string; assessment: string; 
 interface ChecklistItem { no: number; item: string; content: string; target: string }
 interface InstitutionDetail { organization: string; kpi_status: string; current_week: string; next_week: string }
 
+interface BudgetOrgRow { organization: string; total_budget: string; total_executed: string; execution_rate: string; assessment: string }
+interface BudgetAnalysis { summary: string; org_rows: BudgetOrgRow[]; management_point: string }
+
 interface SummaryResult {
   overall_assessment: string
   dashboard: DashboardItem[]
@@ -26,6 +29,7 @@ interface SummaryResult {
   next_week_checklist: ChecklistItem[]
   key_message: string
   institution_details: InstitutionDetail[]
+  budget_analysis?: BudgetAnalysis
 }
 
 // ── 셀 헬퍼 ──────────────────────────────────────────────────────────────────
@@ -160,7 +164,24 @@ async function buildSummaryDocx(result: SummaryResult, period: string): Promise<
     ],
   })
 
-  // 5. 주요 이슈
+  // 5. 예산 집행 현황 분석 (옵션)
+  const budgetTable = result.budget_analysis ? new Table({
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    rows: [
+      new TableRow({ tableHeader: true, children: [hCell('기관', 16), hCell('총예산', 18), hCell('집행액', 18), hCell('집행률', 10), hCell('평가', 38)] }),
+      ...(result.budget_analysis.org_rows ?? []).map((r, i) => new TableRow({
+        children: [
+          dCell(r.organization, { bold: true, shade: i % 2 === 0 ? 'FFFFFF' : 'F8FAFC' }),
+          dCell(r.total_budget, { align: AlignmentType.RIGHT, shade: i % 2 === 0 ? 'FFFFFF' : 'F8FAFC' }),
+          dCell(r.total_executed, { align: AlignmentType.RIGHT, bold: true, shade: i % 2 === 0 ? 'FFFFFF' : 'F8FAFC' }),
+          dCell(r.execution_rate, { align: AlignmentType.CENTER, shade: i % 2 === 0 ? 'FFFFFF' : 'F8FAFC' }),
+          dCell(r.assessment, { shade: i % 2 === 0 ? 'FFFFFF' : 'F8FAFC' }),
+        ],
+      })),
+    ],
+  }) : null
+
+  // 6. 주요 이슈
   const issueTable = new Table({
     width: { size: 100, type: WidthType.PERCENTAGE },
     rows: [
@@ -262,16 +283,32 @@ async function buildSummaryDocx(result: SummaryResult, period: string): Promise<
         secHeading(4, '정량 성과 요약'),
         quantTable,
 
-        // 5. 주요 이슈
-        secHeading(5, '주요 이슈 및 조치 필요사항'),
+        // 5. 예산 집행 현황 분석 (있을 때만)
+        ...(budgetTable && result.budget_analysis ? [
+          secHeading(5, '예산 집행 현황 분석'),
+          new Paragraph({
+            spacing: { after: 80 },
+            shading: { type: ShadingType.SOLID, color: 'EFF6FF' },
+            children: [new TextRun({ text: result.budget_analysis.summary, size: 18, color: '1E40AF' })],
+          }),
+          budgetTable,
+          ...(result.budget_analysis.management_point ? [new Paragraph({
+            spacing: { before: 80, after: 60 },
+            shading: { type: ShadingType.SOLID, color: 'F0FDF4' },
+            children: [new TextRun({ text: result.budget_analysis.management_point, size: 18, color: '166534' })],
+          })] : []),
+        ] : []),
+
+        // 주요 이슈
+        secHeading(budgetTable ? 6 : 5, '주요 이슈 및 조치 필요사항'),
         issueTable,
 
-        // 6. 차주 중점 점검 체크리스트
-        secHeading(6, '차주 중점 점검 체크리스트'),
+        // 차주 중점 점검 체크리스트
+        secHeading(budgetTable ? 7 : 6, '차주 중점 점검 체크리스트'),
         checkTable,
 
-        // 7. 보고용 핵심 메시지
-        secHeading(7, '보고용 핵심 메시지'),
+        // 보고용 핵심 메시지
+        secHeading(budgetTable ? 8 : 7, '보고용 핵심 메시지'),
         new Paragraph({
           spacing: { after: 100 },
           shading: { type: ShadingType.SOLID, color: 'FFFBEB' },
