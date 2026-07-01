@@ -11,7 +11,11 @@ self.addEventListener('push', (event) => {
   }
 
   const badgePromise = (async () => {
-    try { await self.navigator.setAppBadge(1) } catch {}
+    try {
+      if (typeof navigator !== 'undefined' && 'setAppBadge' in navigator) {
+        await navigator.setAppBadge(1)
+      }
+    } catch {}
   })()
 
   event.waitUntil(
@@ -26,7 +30,11 @@ self.addEventListener('notificationclick', (event) => {
   event.notification.close()
   const url = event.notification.data?.url || '/'
 
-  try { self.navigator.clearAppBadge() } catch {}
+  try {
+    if (typeof navigator !== 'undefined' && 'clearAppBadge' in navigator) {
+      navigator.clearAppBadge()
+    }
+  } catch {}
 
   event.waitUntil(
     clients
