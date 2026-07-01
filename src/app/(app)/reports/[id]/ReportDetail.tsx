@@ -8,6 +8,7 @@ import {
   calcRate, calcBudgetRow, calcBudgetSubtotal, fmtNum,
   ReportStatus,
 } from '../report-types'
+import { downloadReportExcel, printReportPdf } from '@/lib/reportDownload'
 
 const STATUS_CONFIG: Record<string, { label: string; cls: string }> = {
   draft:              { label: '임시저장',   cls: 'bg-gray-100 text-gray-600' },
@@ -247,6 +248,7 @@ export default function ReportDetail({
   const router = useRouter()
   const [report, setReport] = useState(initial)
   const [actionLoading, setActionLoading] = useState(false)
+  const [downloadLoading, setDownloadLoading] = useState<'excel' | 'pdf' | null>(null)
   // 관리자 정정요청 모달
   const [showRevisionModal, setShowRevisionModal] = useState(false)
   const [revisionComment, setRevisionComment] = useState('')
@@ -260,6 +262,26 @@ export default function ReportDetail({
 
   const content = report.content as unknown as Record<string, unknown>
   const isV2 = content?.version === 2
+
+  // 다운로드
+  const downloadData = {
+    type: report.type,
+    period_label: report.period_label,
+    content: report.content as WeeklyContent,
+    organization: report.author?.organization ?? (report.content as WeeklyContent).org_info?.operator ?? '',
+  }
+
+  const handleDownloadExcel = async () => {
+    setDownloadLoading('excel')
+    try { await downloadReportExcel(downloadData) } catch { alert('Excel 다운로드에 실패했습니다.') }
+    setDownloadLoading(null)
+  }
+
+  const handleDownloadPdf = () => {
+    setDownloadLoading('pdf')
+    try { printReportPdf(downloadData) } catch { alert('PDF 저장에 실패했습니다.') }
+    setDownloadLoading(null)
+  }
 
   // 삭제
   const handleDelete = async () => {
@@ -416,6 +438,30 @@ export default function ReportDetail({
               className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-xl text-sm transition-colors">
               수정 후 재제출
             </button>
+          )}
+          {report.status === 'approved' && isV2 && (
+            <div className="flex gap-2">
+              <button
+                onClick={handleDownloadExcel}
+                disabled={downloadLoading !== null}
+                className="flex-1 flex items-center justify-center gap-1.5 bg-white border border-gray-300 text-gray-700 font-medium py-3 rounded-xl text-sm hover:bg-gray-50 disabled:opacity-40 transition-colors"
+              >
+                <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                </svg>
+                {downloadLoading === 'excel' ? '생성 중...' : 'Excel'}
+              </button>
+              <button
+                onClick={handleDownloadPdf}
+                disabled={downloadLoading !== null}
+                className="flex-1 flex items-center justify-center gap-1.5 bg-white border border-gray-300 text-gray-700 font-medium py-3 rounded-xl text-sm hover:bg-gray-50 disabled:opacity-40 transition-colors"
+              >
+                <svg className="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                </svg>
+                {downloadLoading === 'pdf' ? '준비 중...' : 'PDF'}
+              </button>
+            </div>
           )}
         </div>
       )}
