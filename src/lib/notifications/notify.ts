@@ -62,4 +62,21 @@ export async function notifyAdmins(
   if (insertError) {
     console.error('[notify] admin_notifications insert error:', insertError)
   }
+
+  const url = type === 'new_inquiry' ? '/admin/inquiries' : '/admin/reports'
+
+  const { data: adminUsers } = await admin
+    .from('profiles')
+    .select('id')
+    .eq('role', 'super_admin')
+
+  if (adminUsers && adminUsers.length > 0) {
+    await Promise.all(
+      adminUsers.map((u) =>
+        sendPushNotification(u.id, { title, body, url }).catch((err) =>
+          console.error('[notify] admin push failed:', err)
+        )
+      )
+    )
+  }
 }
