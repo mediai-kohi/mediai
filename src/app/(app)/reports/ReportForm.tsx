@@ -971,7 +971,7 @@ export default function ReportForm({
           <p className="text-xs font-semibold text-gray-700 mb-1">
             첨부파일 <span className="text-gray-400 font-normal">(선택, 파일당 10MB 이하)</span>
           </p>
-          <p className="text-[10px] text-gray-400 mb-3">※ 민감정보 등의 경우 이메일 등 다른 연락수단을 사용하시기 바랍니다.</p>
+          <p className="text-[10px] text-gray-400 mb-3">※ 개인정보, 민감정보 등이 포함된 사항은 이메일 및 유선연락을 활용해 주시기 바랍니다.</p>
           {fileError && (
             <div className="mb-3 bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-xs text-red-600">{fileError}</div>
           )}

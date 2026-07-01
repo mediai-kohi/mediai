@@ -3,7 +3,7 @@
 교육기관 내부 구성원을 위한 업무 통합 관리 플랫폼입니다.  
 관리자 승인 기반 회원 관리, 주간·월간 업무보고, 문의 게시판, AI 규정 질의응답 기능을 제공합니다.
 
-> **운영 중**: https://eduops-sigma.vercel.app
+> **운영 중**: https://mediai-kohi.vercel.app
 
 ---
 

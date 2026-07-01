@@ -1,7 +1,7 @@
 # eduops — 구현 현황 문서
 
 > 기준일: 2026-04-25 (name 컬럼 제거, 기관 선택 방식 변경, 시스템 제목 변경)  
-> 서비스: https://eduops-sigma.vercel.app  
+> 서비스: https://mediai-kohi.vercel.app  
 > 저장소: https://github.com/k2silver39-spec/eduops (master 브랜치 자동 배포)
 
 ---

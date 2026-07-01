@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 
-type PermissionStatus = 'unsupported' | 'loading' | 'default' | 'granted' | 'denied'
+type PermissionStatus = 'unsupported' | 'loading' | 'waiting-permission' | 'default' | 'granted' | 'denied'
 
 function urlBase64ToArrayBuffer(base64String: string): ArrayBuffer {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
@@ -58,10 +58,11 @@ export default function PushPermission() {
       setErrorMsg('푸시 설정이 누락되었습니다. 관리자에게 문의하세요.')
       return
     }
-    setStatus('loading')
+    setStatus('waiting-permission')
     setErrorMsg('')
     try {
       const permission = await Notification.requestPermission()
+      setStatus('loading')
       if (permission !== 'granted') {
         setStatus(permission as PermissionStatus)
         return
@@ -136,7 +137,8 @@ export default function PushPermission() {
   if (status === 'unsupported') return null
 
   const isOn = status === 'granted'
-  const isLoading = status === 'loading'
+  const isLoading = status === 'loading' || status === 'waiting-permission'
+  const isWaitingPermission = status === 'waiting-permission'
 
   if (status === 'denied') {
     return (
@@ -158,7 +160,7 @@ export default function PushPermission() {
         <div>
           <p className="text-sm text-gray-700 font-medium">푸시 알림</p>
           <p className="text-xs text-gray-400 mt-0.5">
-            {isLoading ? '처리 중...' : isOn ? '알림이 활성화되어 있습니다' : '알림이 꺼져 있습니다'}
+            {isWaitingPermission ? '브라우저 주소창 근처의 알림 허용 팝업을 확인해 주세요' : isLoading ? '처리 중...' : isOn ? '알림이 활성화되어 있습니다' : '알림이 꺼져 있습니다'}
           </p>
         </div>
         <button
