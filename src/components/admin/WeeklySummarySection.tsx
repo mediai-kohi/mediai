@@ -538,8 +538,8 @@ export default function WeeklySummarySection({ initialData, aiReport }: Props) {
             <p className="text-sm font-bold text-gray-800">예산 집행 현황</p>
             <span className="hidden sm:inline text-[11px] font-semibold text-gray-400 tracking-wider">BUDGET</span>
           </div>
-          <div className="bg-white border border-gray-200 rounded-2xl p-5">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div className="bg-white border border-gray-200 rounded-2xl p-5 space-y-4">
+            {/* 전체 집행 요약 */}
             <div>
               <p className="text-[10px] text-gray-400 tracking-wide mb-1">TOTAL EXECUTED BUDGET</p>
               <p className="text-2xl font-bold text-gray-900">
@@ -547,7 +547,8 @@ export default function WeeklySummarySection({ initialData, aiReport }: Props) {
                 <span className="text-sm font-normal text-gray-500 ml-1">원 집행 완료</span>
               </p>
               <p className="text-xs text-gray-400 mt-1">
-                총 사업 예산 {(data.budget.total_budget / 100_000_000).toFixed(1)}억원 대비 **{data.budget.execution_rate}** 집행률 기록
+                총 사업 예산 {(data.budget.total_budget / 100_000_000).toFixed(1)}억원 대비{' '}
+                <span className="font-semibold text-gray-600">{data.budget.execution_rate}</span> 집행률 기록
               </p>
               <div className="mt-3">
                 <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
@@ -559,23 +560,47 @@ export default function WeeklySummarySection({ initialData, aiReport }: Props) {
                 <p className="text-xs text-red-500 mt-1">누적 실집행률 {data.budget.execution_rate}</p>
               </div>
             </div>
+
+            {/* 국고보조금 / 자기부담금 분리 */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-blue-50 rounded-xl p-3">
+                <p className="text-[10px] font-semibold text-blue-500 tracking-wide mb-1">국고보조금</p>
+                <p className="text-sm font-bold text-gray-900">{data.budget.total_executed_gov.toLocaleString()}원</p>
+                <p className="text-[11px] text-gray-400 mt-0.5">
+                  예산 {(data.budget.total_budget_gov / 100_000_000).toFixed(1)}억 · 집행률 {data.budget.execution_rate_gov}
+                </p>
+              </div>
+              <div className="bg-emerald-50 rounded-xl p-3">
+                <p className="text-[10px] font-semibold text-emerald-600 tracking-wide mb-1">자기부담금</p>
+                <p className="text-sm font-bold text-gray-900">{data.budget.total_executed_self.toLocaleString()}원</p>
+                <p className="text-[11px] text-gray-400 mt-0.5">
+                  예산 {(data.budget.total_budget_self / 100_000_000).toFixed(1)}억 · 집행률 {data.budget.execution_rate_self}
+                </p>
+              </div>
+            </div>
+
+            {/* 기관별 집행 내역 */}
             {data.budget.org_executions && data.budget.org_executions.length > 0 && (
               <div>
-                <p className="text-xs font-medium text-gray-600 mb-2">집행 완료 내역</p>
-                <div className="space-y-1.5">
+                <p className="text-xs font-medium text-gray-600 mb-2">기관별 집행 내역</p>
+                <div className="space-y-2">
                   {data.budget.org_executions.map((e) => (
-                    <div key={e.org} className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                    <div key={e.org} className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-1.5 pt-0.5">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0" />
                         <span className="text-xs text-gray-700">{e.org}</span>
                       </div>
-                      <span className="text-xs font-medium text-gray-900">{e.executed.toLocaleString()}원</span>
+                      <div className="text-right flex-shrink-0">
+                        <p className="text-xs font-medium text-gray-900">{e.executed.toLocaleString()}원</p>
+                        <p className="text-[10px] text-gray-400">
+                          국고 {e.gov.toLocaleString()} · 자기 {e.self.toLocaleString()}
+                        </p>
+                      </div>
                     </div>
                   ))}
                 </div>
               </div>
             )}
-            </div>
           </div>
         </div>
       )}

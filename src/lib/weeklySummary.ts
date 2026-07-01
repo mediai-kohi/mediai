@@ -73,9 +73,15 @@ export interface HeadlineKpi {
 
 export interface BudgetInfo {
   total_budget: number
+  total_budget_gov: number
+  total_budget_self: number
   total_executed: number
+  total_executed_gov: number
+  total_executed_self: number
   execution_rate: string
-  org_executions: { org: string; executed: number }[]
+  execution_rate_gov: string
+  execution_rate_self: string
+  org_executions: { org: string; executed: number; gov: number; self: number }[]
 }
 
 export interface WeeklySummaryData {
@@ -307,21 +313,37 @@ export function computeWeeklySummary(
   })
 
   // 예산 (주간 보고서 최신 1건에서 기관별 집계)
-  const orgExecutions: { org: string; executed: number }[] = []
+  const orgExecutions: { org: string; executed: number; gov: number; self: number }[] = []
   let totalExecuted = 0
+  let totalExecutedGov = 0
+  let totalExecutedSelf = 0
+  let totalBudgetGov = 0
+  let totalBudgetSelf = 0
   for (const [org, r] of orgMap) {
     const content = r.content as WeeklyContent | null
+    const govBudget = parseNum(content?.budget?.operator_gov?.budget)
+    const selfBudget = parseNum(content?.budget?.operator_self?.budget)
     const gov = parseNum(content?.budget?.operator_gov?.executed)
     const self = parseNum(content?.budget?.operator_self?.executed)
     const sum = gov + self
+    totalBudgetGov += govBudget
+    totalBudgetSelf += selfBudget
+    totalExecuted += sum
+    totalExecutedGov += gov
+    totalExecutedSelf += self
     if (sum > 0) {
-      orgExecutions.push({ org, executed: sum })
-      totalExecuted += sum
+      orgExecutions.push({ org, executed: sum, gov, self })
     }
   }
-  const TOTAL_BUDGET = 1_560_000_000
-  const execRate = TOTAL_BUDGET > 0
-    ? `${((totalExecuted / TOTAL_BUDGET) * 100).toFixed(2)}%`
+  const totalBudget = totalBudgetGov + totalBudgetSelf
+  const execRate = totalBudget > 0
+    ? `${((totalExecuted / totalBudget) * 100).toFixed(2)}%`
+    : '—'
+  const execRateGov = totalBudgetGov > 0
+    ? `${((totalExecutedGov / totalBudgetGov) * 100).toFixed(2)}%`
+    : '—'
+  const execRateSelf = totalBudgetSelf > 0
+    ? `${((totalExecutedSelf / totalBudgetSelf) * 100).toFixed(2)}%`
     : '—'
 
   const submitted_count = org_statuses.filter((o) => o.display_status !== '미제출').length
@@ -345,9 +367,15 @@ export function computeWeeklySummary(
     kpi_totals,
     org_statuses,
     budget: {
-      total_budget: TOTAL_BUDGET,
+      total_budget: totalBudget,
+      total_budget_gov: totalBudgetGov,
+      total_budget_self: totalBudgetSelf,
       total_executed: totalExecuted,
+      total_executed_gov: totalExecutedGov,
+      total_executed_self: totalExecutedSelf,
       execution_rate: execRate,
+      execution_rate_gov: execRateGov,
+      execution_rate_self: execRateSelf,
       org_executions: orgExecutions,
     },
   }
