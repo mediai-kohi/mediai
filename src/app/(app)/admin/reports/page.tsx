@@ -324,13 +324,18 @@ export default function AdminReportsPage() {
     }
   }
 
-  const downloadSummaryDoc = (result: SummaryResult, period: string) => {
-    const html = buildSummaryHtml(result, period)
-    const blob = new Blob(['﻿', html], { type: 'application/msword' })
+  const downloadSummaryDoc = async (result: SummaryResult, period: string) => {
+    const res = await fetch('/api/admin/ai-reports/word', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ result, period }),
+    })
+    if (!res.ok) { alert('Word 파일 생성에 실패했습니다.'); return }
+    const blob = await res.blob()
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `AI분석보고서_${period.replace(/[,\s]+/g, '_') || '보고서'}.doc`
+    a.download = `AI분석보고서_${period.replace(/[,\s]+/g, '_') || '보고서'}.docx`
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
