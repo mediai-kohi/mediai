@@ -2,8 +2,18 @@ import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse, type NextRequest } from 'next/server'
 
-export async function updateSession(request: NextRequest) {
-  let supabaseResponse = NextResponse.next({ request })
+export async function updateSession(request: NextRequest, extraHeaders?: Record<string, string>) {
+  // Build request headers — include extra headers (e.g. nonce, CSP) so downstream
+  // server components can read them via headers()
+  const buildReqHeaders = () => {
+    const h = new Headers(request.headers)
+    if (extraHeaders) {
+      for (const [k, v] of Object.entries(extraHeaders)) h.set(k, v)
+    }
+    return h
+  }
+
+  let supabaseResponse = NextResponse.next({ request: { headers: buildReqHeaders() } })
 
   // 세션 관리용 (anon key + cookies)
   const supabase = createServerClient(
@@ -18,7 +28,7 @@ export async function updateSession(request: NextRequest) {
           cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value)
           )
-          supabaseResponse = NextResponse.next({ request })
+          supabaseResponse = NextResponse.next({ request: { headers: buildReqHeaders() } })
           cookiesToSet.forEach(({ name, value, options }) =>
             supabaseResponse.cookies.set(name, value, options)
           )
