@@ -51,9 +51,9 @@ function buildHref(n: Notification): string {
     case 'report_reminder':
       return '/reports'
     case 'new_inquiry':
-      return n.reference_id ? `/admin/inquiries/${n.reference_id}` : '/admin/inquiries'
+      return '/admin/inquiries'
     case 'new_report':
-      return n.reference_id ? `/admin/reports/${n.reference_id}` : '/admin/reports'
+      return '/admin/reports'
     default:
       return '/'
   }
