@@ -37,7 +37,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "docx": "^9.6.1",
+    "docx": "^9.7.1",
     "tailwindcss": "^4",
     "typescript": "^5"
   },
