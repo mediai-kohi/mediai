@@ -1,14 +1,17 @@
 import { type NextRequest } from 'next/server'
 import { updateSession } from '@/lib/supabase/middleware'
 
-function buildCsp(nonce: string): string {
+function buildCsp(): string {
   const isDev = process.env.NODE_ENV === 'development'
 
-  // In production: nonce + strict-dynamic (no unsafe-inline, no unsafe-eval)
-  // In development: also add unsafe-eval (React uses eval for enhanced error stacks)
+  // nonce + strict-dynamic requires every page to be dynamically rendered
+  // (see node_modules/next/dist/docs/.../content-security-policy.md).
+  // This app has statically prerendered pages (/, /auth/login, /auth/signup),
+  // so script tags ship without a nonce and strict-dynamic blocks all JS —
+  // falling back to unsafe-inline until pages are forced dynamic.
   const scriptSrc = isDev
-    ? `'nonce-${nonce}' 'strict-dynamic' 'unsafe-eval'`
-    : `'nonce-${nonce}' 'strict-dynamic'`
+    ? "'unsafe-inline' 'unsafe-eval'"
+    : "'unsafe-inline'"
 
   return [
     "default-src 'self'",
@@ -25,20 +28,14 @@ function buildCsp(nonce: string): string {
 }
 
 export async function proxy(request: NextRequest) {
-  const nonce = Buffer.from(crypto.randomUUID()).toString('base64')
-  const csp = buildCsp(nonce)
+  const csp = buildCsp()
 
-  // Pass nonce + CSP in request headers so:
-  //   1. Next.js extracts the nonce and applies it to its own framework scripts
-  //   2. Server components can read x-nonce via headers() if needed
   const response = await updateSession(request, {
-    'x-nonce': nonce,
     'Content-Security-Policy': csp,
   })
 
   // Also set CSP on response so the browser enforces it
   response.headers.set('Content-Security-Policy', csp)
-  response.headers.set('x-nonce', nonce)
 
   return response
 }
