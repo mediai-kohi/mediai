@@ -15,7 +15,7 @@ export const KPI_LABELS = [
 
 export const HEADLINE_KPI_CONFIG = [
   { kpiIndex: 0, label: '과정 운영 개시',  labelEn: 'PROGRAM OPERATIONS', unit: '과정', color: 'teal',   fixedTarget: null },
-  { kpiIndex: 1, label: '누적 수료 인원',  labelEn: 'GRADUATES TOTAL',    unit: '명',   color: 'blue',   fixedTarget: null },
+  { kpiIndex: 1, label: '누적 수료 인원',  labelEn: 'GRADUATES TOTAL',    unit: '명',   color: 'blue',   fixedTarget: 1200 },
   { kpiIndex: 3, label: '교육 만족도',     labelEn: 'SATISFACTION',       unit: '점',   color: 'amber',  fixedTarget: 60 },
   { kpiIndex: 4, label: '지역기관 참여율', labelEn: 'REGIONAL EXPANSION', unit: '%',    color: 'purple', fixedTarget: 30 },
 ] as const
