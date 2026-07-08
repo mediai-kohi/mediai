@@ -20,9 +20,12 @@ export async function GET(request: Request) {
 
   const weekStart = monday.toISOString().split('T')[0]
 
-  const year = monday.getUTCFullYear()
-  const month = monday.getUTCMonth() + 1
-  const weekOfMonth = Math.ceil(monday.getUTCDate() / 7)
+  // 몇월 몇주차 표기는 그 주의 목요일이 속한 월 기준
+  const thursday = new Date(monday)
+  thursday.setUTCDate(monday.getUTCDate() + 3)
+  const year = thursday.getUTCFullYear()
+  const month = thursday.getUTCMonth() + 1
+  const weekOfMonth = Math.ceil(thursday.getUTCDate() / 7)
   const periodLabel = `${year}년 ${String(month).padStart(2, '0')}월 ${weekOfMonth}주차`
 
   // 승인된 사용자 전체 조회

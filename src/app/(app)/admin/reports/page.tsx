@@ -41,17 +41,19 @@ function toDateStr(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 }
 
+/** 해당 연월에 속하는 주(그 주의 목요일이 해당 월인 주) 목록 반환 */
 function getWeeksInMonth(year: number, month: number): { start: string; label: string }[] {
   const result: { start: string; label: string }[] = []
-  let monday = new Date(year, month - 1, 1)
-  while (monday.getDay() !== 1) monday.setDate(monday.getDate() + 1)
+  const lastDay = new Date(year, month, 0).getDate()
+  const fmt = (d: Date) => `${d.getMonth() + 1}/${d.getDate()}`
   let weekNum = 1
-  while (monday.getFullYear() === year && monday.getMonth() + 1 === month) {
+  for (let day = 1; day <= lastDay; day++) {
+    const thursday = new Date(year, month - 1, day)
+    if (thursday.getDay() !== 4) continue
+    const monday = new Date(thursday); monday.setDate(monday.getDate() - 3)
     const sunday = new Date(monday); sunday.setDate(monday.getDate() + 6)
-    const fmt = (d: Date) => `${d.getMonth() + 1}/${d.getDate()}`
     result.push({ start: toDateStr(monday), label: `${month}월 ${weekNum}주차 (${fmt(monday)}~${fmt(sunday)})` })
     weekNum++
-    monday = new Date(monday); monday.setDate(monday.getDate() + 7)
   }
   return result
 }

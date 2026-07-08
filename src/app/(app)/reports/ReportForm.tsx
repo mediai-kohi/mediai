@@ -39,39 +39,46 @@ function toDateStr(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 }
 
-function getWeekOfMonth(monday: Date): number {
-  return Math.ceil(monday.getDate() / 7)
+function getWeekOfMonth(date: Date): number {
+  return Math.ceil(date.getDate() / 7)
+}
+
+/** 월요일이 속한 주의 목요일 (몇월 몇주차 판정 기준일) */
+function getThursdayOfWeek(monday: Date): Date {
+  const d = new Date(monday)
+  d.setDate(d.getDate() + 3)
+  return d
 }
 
 function calcWeeklyPeriod(weeklyDate: string) {
   const monday = getMondayOfWeek(new Date(weeklyDate + 'T00:00:00'))
   const sunday = new Date(monday)
   sunday.setDate(sunday.getDate() + 6)
-  const week = getWeekOfMonth(monday)
+  const thursday = getThursdayOfWeek(monday)
+  const week = getWeekOfMonth(thursday)
   return {
-    period_label: `${monday.getFullYear()}년 ${monday.getMonth() + 1}월 ${week}주차 (${monday.getMonth() + 1}.${monday.getDate()}.~${sunday.getMonth() + 1}.${sunday.getDate()}.)`,
+    period_label: `${thursday.getFullYear()}년 ${thursday.getMonth() + 1}월 ${week}주차 (${monday.getMonth() + 1}.${monday.getDate()}.~${sunday.getMonth() + 1}.${sunday.getDate()}.)`,
     period_start: toDateStr(monday),
     period_end:   toDateStr(sunday),
     monday,
   }
 }
 
-/** 해당 연월에 속하는 주(월요일이 해당 월인 주만) 목록 반환 */
+/** 해당 연월에 속하는 주(그 주의 목요일이 해당 월인 주) 목록 반환 */
 function getWeeksInMonth(year: number, month: number): { value: string; label: string }[] {
   const result: { value: string; label: string }[] = []
-  let monday = new Date(year, month - 1, 1)
-  while (monday.getDay() !== 1) {
-    monday.setDate(monday.getDate() + 1)
-  }
-  let weekNum = 1
+  const lastDay = new Date(year, month, 0).getDate()
   const fmt = (d: Date) => `${d.getMonth() + 1}/${d.getDate()}`
-  while (monday.getFullYear() === year && monday.getMonth() + 1 === month) {
+  let weekNum = 1
+  for (let day = 1; day <= lastDay; day++) {
+    const thursday = new Date(year, month - 1, day)
+    if (thursday.getDay() !== 4) continue
+    const monday = new Date(thursday)
+    monday.setDate(monday.getDate() - 3)
     const sunday = new Date(monday)
     sunday.setDate(monday.getDate() + 6)
     result.push({ value: toDateStr(monday), label: `${weekNum}주차 (${fmt(monday)}~${fmt(sunday)})` })
     weekNum++
-    monday = new Date(monday)
-    monday.setDate(monday.getDate() + 7)
   }
   return result
 }
@@ -720,11 +727,11 @@ export default function ReportForm({
   const [weeklyDate, setWeeklyDate] = useState(initialWeeklyDate ?? toDateStr(defaultMonday))
   const [weeklyDisplayYear, setWeeklyDisplayYear] = useState(() => {
     const d = new Date((initialWeeklyDate ?? toDateStr(defaultMonday)) + 'T00:00:00')
-    return d.getFullYear()
+    return getThursdayOfWeek(d).getFullYear()
   })
   const [weeklyDisplayMonth, setWeeklyDisplayMonth] = useState(() => {
     const d = new Date((initialWeeklyDate ?? toDateStr(defaultMonday)) + 'T00:00:00')
-    return d.getMonth() + 1
+    return getThursdayOfWeek(d).getMonth() + 1
   })
 
   const [weekly, setWeekly] = useState<WeeklyContent>(
