@@ -449,16 +449,6 @@ export default function WeeklySummarySection({ initialData, aiReport }: Props) {
         </div>
       </div>
 
-      {/* ── AI 핵심 메시지 배너 ── */}
-      {keyMessageBanner && (
-        <div className="bg-gradient-to-r from-emerald-600 to-teal-500 rounded-2xl px-5 py-4 text-white">
-          <div className="flex items-start gap-3">
-            <span className="w-2 h-2 rounded-full bg-white/80 mt-1.5 flex-shrink-0" />
-            <p className="text-sm leading-relaxed">{keyMessageBanner}</p>
-          </div>
-        </div>
-      )}
-
       {/* ── 2. 주요 운영기관별 핵심 동향 ── */}
       <div>
         <div className="flex items-center gap-2.5 mb-3">
@@ -646,6 +636,16 @@ export default function WeeklySummarySection({ initialData, aiReport }: Props) {
           </div>
         )}
       </div>
+
+      {/* ── AI 핵심 메시지 배너 ── */}
+      {keyMessageBanner && (
+        <div className="bg-gradient-to-r from-emerald-600 to-teal-500 rounded-2xl px-5 py-4 text-white">
+          <div className="flex items-start gap-3">
+            <span className="w-2 h-2 rounded-full bg-white/80 mt-1.5 flex-shrink-0" />
+            <p className="text-sm leading-relaxed">{keyMessageBanner}</p>
+          </div>
+        </div>
+      )}
 
       {/* ── 확정된 주간 요약 목록 ── */}
       <ArchiveList key={archiveKey} />
