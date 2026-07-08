@@ -44,5 +44,24 @@ export async function GET(request: Request) {
   const { data } = await query.maybeSingle()
 
   if (!data) return NextResponse.json(null)
-  return NextResponse.json(data)
+
+  // 예산 집행액 자동입력은 승인(approved)된 리포트의 값만 사용
+  let approvedQuery = admin
+    .from('reports')
+    .select('content')
+    .eq('organization', profile.organization)
+    .eq('status', 'approved')
+    .lt('period_start', before)
+    .order('period_start', { ascending: false })
+    .limit(1)
+
+  if (type) {
+    approvedQuery = approvedQuery.eq('type', type)
+  }
+
+  const { data: approvedData } = await approvedQuery.maybeSingle()
+  const approvedContent = approvedData?.content as { version?: number; budget?: unknown } | undefined
+  const approvedBudget = approvedContent?.version === 2 ? approvedContent.budget ?? null : null
+
+  return NextResponse.json({ ...data, approvedBudget })
 }

@@ -18,6 +18,7 @@ import ReportPreviewModal from './ReportPreviewModal'
 import {
   ReportMode,
   WeeklyContent,
+  MonthlyBudget,
   KPI_LABELS, ACTIVITY_LABELS,
   calcRate, calcBudgetRow, calcBudgetSubtotal, fmtNum,
   defaultWeekly,
@@ -341,12 +342,14 @@ function WeeklyFormBody({
   value,
   onChange,
   prev,
+  prevApprovedBudget,
   weeklyDate,
   mode,
 }: {
   value: WeeklyContent
   onChange: (v: WeeklyContent) => void
   prev?: WeeklyContent
+  prevApprovedBudget?: MonthlyBudget | null
   weeklyDate: string
   mode: ReportMode
 }) {
@@ -375,11 +378,11 @@ function WeeklyFormBody({
       budget: {
         operator_gov: {
           budget: value.budget.operator_gov.budget || prev.budget?.operator_gov?.budget || '',
-          executed: value.budget.operator_gov.executed,
+          executed: value.budget.operator_gov.executed || prevApprovedBudget?.operator_gov?.executed || '',
         },
         operator_self: {
           budget: value.budget.operator_self.budget || prev.budget?.operator_self?.budget || '',
-          executed: value.budget.operator_self.executed,
+          executed: value.budget.operator_self.executed || prevApprovedBudget?.operator_self?.executed || '',
         },
       },
       budget_plan: value.budget_plan || prev.budget_plan || '',
@@ -387,7 +390,7 @@ function WeeklyFormBody({
     setAutoFillMsg('이전 주간보고 내용을 불러왔습니다.')
     setTimeout(() => setAutoFillMsg(''), 6000)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, prev])
+  }, [mode, prev, prevApprovedBudget])
 
   const monday = getMondayOfWeek(new Date(weeklyDate + 'T00:00:00'))
   const { thisWeek, nextWeek } = getWeekHeaders(monday)
@@ -730,6 +733,7 @@ export default function ReportForm({
 
   const [prevWeekly, setPrevWeekly] = useState<WeeklyContent | undefined>()
   const [prevLabel, setPrevLabel] = useState('')
+  const [prevApprovedBudget, setPrevApprovedBudget] = useState<MonthlyBudget | null>(null)
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -806,17 +810,19 @@ export default function ReportForm({
   const fetchPrev = useCallback(async (before: string) => {
     try {
       const res = await fetch(`/api/reports/previous?type=weekly&before=${before}`)
-      if (!res.ok) { setPrevWeekly(undefined); return }
+      if (!res.ok) { setPrevWeekly(undefined); setPrevApprovedBudget(null); return }
       const data = await res.json()
-      if (!data) { setPrevWeekly(undefined); return }
+      if (!data) { setPrevWeekly(undefined); setPrevApprovedBudget(null); return }
       setPrevLabel(data.period_label ?? '')
       if (data.content?.version === 2) {
         setPrevWeekly(data.content as WeeklyContent)
       } else {
         setPrevWeekly(undefined)
       }
+      setPrevApprovedBudget((data.approvedBudget as MonthlyBudget | null) ?? null)
     } catch {
       setPrevWeekly(undefined)
+      setPrevApprovedBudget(null)
     }
   }, [])
 
@@ -1003,6 +1009,7 @@ export default function ReportForm({
           value={weekly}
           onChange={setWeekly}
           prev={prevWeekly}
+          prevApprovedBudget={prevApprovedBudget}
           weeklyDate={weeklyDate}
           mode={mode}
         />
