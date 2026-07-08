@@ -156,9 +156,11 @@ export function getISOWeekInfo(monday: Date): { year: number; week_number: numbe
 }
 
 export function computePeriodLabel(monday: Date): string {
-  const month = monday.getMonth() + 1
-  const weekOfMonth = Math.ceil(monday.getDate() / 7)
-  return `${monday.getFullYear()}년 ${month}월 ${weekOfMonth}주`
+  // 몇월 몇주인지는 그 주의 목요일이 속한 달 기준으로 판정
+  const thursday = addDays(monday, 3)
+  const month = thursday.getMonth() + 1
+  const weekOfMonth = Math.ceil(thursday.getDate() / 7)
+  return `${thursday.getFullYear()}년 ${month}월 ${weekOfMonth}주`
 }
 
 function taglineForRate(kpiIndex: number, rate: number): string {
