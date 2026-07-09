@@ -113,6 +113,7 @@ function WeeklyDetail({ content }: { content: WeeklyContent }) {
               {KPI_LABELS.map((label, i) => {
                 const row = kpi_rows[i] ?? { target: '', actual: '' }
                 const isManpower = label === '전문인력 양성(명)'
+                const isRegional = label === '지역확산(%)'
                 const actualSub = (row as { actual_sub?: string }).actual_sub
                 return (
                   <tr key={label}>
@@ -123,6 +124,11 @@ function WeeklyDetail({ content }: { content: WeeklyContent }) {
                         <div className="text-left space-y-0.5">
                           <div>수료: {fmtNum(row.actual) || '—'}</div>
                           <div>교육중: {fmtNum(actualSub ?? '') || '—'}</div>
+                        </div>
+                      ) : isRegional ? (
+                        <div className="text-left space-y-0.5">
+                          <div>비중: {row.actual ? `${fmtNum(row.actual)}%` : '—'}</div>
+                          <div>지역참여인원: {fmtNum(actualSub ?? '') || '—'}</div>
                         </div>
                       ) : (fmtNum(row.actual) || '—')}
                     </td>

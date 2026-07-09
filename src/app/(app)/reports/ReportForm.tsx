@@ -20,7 +20,7 @@ import {
   WeeklyContent,
   MonthlyBudget,
   KPI_LABELS, ACTIVITY_LABELS,
-  calcRate, calcBudgetRow, calcBudgetSubtotal, fmtNum,
+  calcRate, calcBudgetRow, calcBudgetSubtotal, calcRegionalShare, fmtNum,
   defaultWeekly,
 } from './report-types'
 
@@ -339,7 +339,7 @@ const KPI_HINTS: Record<string, string> = {
   '홍보(건)': '월 1회 이상',
   '수료율(%)': '수료인원/참여인원',
   '만족도 점수(점)': '100점 만점 기준',
-  '지역확산(%)': '수도권 이외 지역의료기관 참여인원 비중',
+  '지역확산(%)': '수도권 이외 지역의료기관 참여인원 비중 (전문인력 양성 수료인원 기준 자동계산)',
 }
 
 // ─────────────────────────────────────────────────
@@ -405,6 +405,21 @@ function WeeklyFormBody({
   const setKpi = (i: number, patch: Partial<typeof value.kpi_rows[0]>) =>
     onChange({ ...value, kpi_rows: value.kpi_rows.map((r, idx) => idx === i ? { ...r, ...patch } : r) })
 
+  // 지역확산 비중(%) 자동계산: 지역참여인원 / 전문인력 양성 수료인원 * 100
+  const manpowerIdx = KPI_LABELS.indexOf('전문인력 양성(명)')
+  const regionalIdx = KPI_LABELS.indexOf('지역확산(%)')
+  const manpowerActual = value.kpi_rows[manpowerIdx]?.actual ?? ''
+  const regionalCount = value.kpi_rows[regionalIdx]?.actual_sub ?? ''
+  useEffect(() => {
+    const computed = calcRegionalShare(manpowerActual, regionalCount)
+    if ((value.kpi_rows[regionalIdx]?.actual ?? '') === computed) return
+    onChange({
+      ...value,
+      kpi_rows: value.kpi_rows.map((r, idx) => idx === regionalIdx ? { ...r, actual: computed } : r),
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [manpowerActual, regionalCount])
+
   const setActivity = (i: number, patch: Partial<typeof value.activity_rows[0]>) =>
     onChange({ ...value, activity_rows: value.activity_rows.map((r, idx) => idx === i ? { ...r, ...patch } : r) })
 
@@ -463,6 +478,8 @@ function WeeklyFormBody({
                 const prevRow = prev?.kpi_rows[i]
                 const isManpower = label === '전문인력 양성(명)'
                 const isProgram = label === '프로그램 개발·운영(과정수)'
+                const isRegional = label === '지역확산(%)'
+                const isPromo = label === '홍보(건)'
                 return (
                   <tr key={label}>
                     <td className={`${TH_BASE} text-center font-medium`}>
@@ -518,6 +535,36 @@ function WeeklyFormBody({
                       ) : isProgram ? (
                         <div className="flex items-center gap-1">
                           <span className="text-[10px] text-gray-400 w-6 flex-shrink-0 text-right">운영</span>
+                          <GhostNumInput
+                            value={row.actual}
+                            onChange={(v) => setKpi(i, { actual: v })}
+                            ghostValue={prevRow?.actual}
+                            className={numCls}
+                            decimal
+                          />
+                        </div>
+                      ) : isRegional ? (
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between px-0.5">
+                            <span className="text-[10px] text-gray-400">비중</span>
+                            <span className="text-xs font-semibold text-blue-600 tabular-nums">
+                              {row.actual ? `${fmtNum(row.actual)}%` : '—'}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <span className="text-[10px] text-gray-400 w-14 flex-shrink-0 text-right">지역참여인원</span>
+                            <GhostNumInput
+                              value={row.actual_sub ?? ''}
+                              onChange={(v) => setKpi(i, { actual_sub: v })}
+                              ghostValue={prevRow?.actual_sub}
+                              className={numCls}
+                              decimal
+                            />
+                          </div>
+                        </div>
+                      ) : isPromo ? (
+                        <div className="flex items-center gap-1">
+                          <span className="text-[10px] text-gray-400 w-6 flex-shrink-0 text-right">누적</span>
                           <GhostNumInput
                             value={row.actual}
                             onChange={(v) => setKpi(i, { actual: v })}
