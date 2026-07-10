@@ -1,20 +1,21 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
-import { checkLoginRateLimit, rateLimitResponse } from '@/lib/rate-limit'
+import { checkLoginRateLimit, recordLoginFailure, rateLimitResponse } from '@/lib/rate-limit'
 import { insertAuditLog } from '@/lib/audit'
 
 export async function POST(request: NextRequest) {
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
-  const rl = await checkLoginRateLimit(ip)
-  if (!rl.allowed) return rateLimitResponse(rl)
-
   const { user_code, password } = await request.json()
 
   if (!user_code || !password) {
     return NextResponse.json({ error: '사용자 ID와 비밀번호를 입력하세요.' }, { status: 400 })
   }
 
-  const email = `${user_code.trim().toUpperCase()}@eduops.internal`
+  const normalizedCode = user_code.trim().toUpperCase()
+  const rl = await checkLoginRateLimit(ip, normalizedCode)
+  if (!rl.allowed) return rateLimitResponse(rl)
+
+  const email = `${normalizedCode}@eduops.internal`
   const response = NextResponse.json({ ok: true })
 
   const supabase = createServerClient(
@@ -37,7 +38,8 @@ export async function POST(request: NextRequest) {
   const { data: authData, error } = await supabase.auth.signInWithPassword({ email, password })
 
   if (error) {
-    await insertAuditLog({ action: 'auth.login.fail', ipAddress: ip, metadata: { user_code: user_code.trim().toUpperCase() } })
+    await recordLoginFailure(ip, normalizedCode)
+    await insertAuditLog({ action: 'auth.login.fail', ipAddress: ip, metadata: { user_code: normalizedCode } })
     return NextResponse.json({ error: '사용자 ID 또는 비밀번호가 올바르지 않습니다.' }, { status: 400 })
   }
 

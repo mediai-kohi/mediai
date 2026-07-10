@@ -1,11 +1,10 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
-import { checkLoginRateLimit } from '@/lib/rate-limit'
+import { checkLoginRateLimit, recordLoginFailure } from '@/lib/rate-limit'
 import { insertAuditLog } from '@/lib/audit'
 
 export async function POST(request: NextRequest) {
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
-  const rl = await checkLoginRateLimit(ip)
 
   const formData = await request.formData()
   const user_code = formData.get('user_code')?.toString().trim().toUpperCase() ?? ''
@@ -14,12 +13,13 @@ export async function POST(request: NextRequest) {
   const redirectUrl = new URL('/auth/login', request.url)
   redirectUrl.searchParams.set('error', '1')
 
+  if (!user_code || !password) return NextResponse.redirect(redirectUrl)
+
+  const rl = await checkLoginRateLimit(ip, user_code)
   if (!rl.allowed) {
     redirectUrl.searchParams.set('error', 'rate_limit')
     return NextResponse.redirect(redirectUrl)
   }
-
-  if (!user_code || !password) return NextResponse.redirect(redirectUrl)
 
   const email = `${user_code}@eduops.internal`
   const successRedirect = new URL('/', request.url)
@@ -45,6 +45,7 @@ export async function POST(request: NextRequest) {
   const { data: authData, error } = await supabase.auth.signInWithPassword({ email, password })
 
   if (error) {
+    await recordLoginFailure(ip, user_code)
     await insertAuditLog({ action: 'auth.login.fail', ipAddress: ip, metadata: { user_code } })
     return NextResponse.redirect(redirectUrl)
   }

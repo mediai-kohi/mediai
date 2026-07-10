@@ -47,7 +47,8 @@ function LoginForm() {
 
       if (!res.ok) {
         if (res.status === 429) {
-          setError('로그인 시도 횟수를 초과했습니다. 잠시 후 다시 시도해주세요.')
+          const data = await res.json().catch(() => null)
+          setError(data?.error ?? '로그인 시도 횟수를 초과했습니다. 잠시 후 다시 시도해주세요.')
         } else {
           setError('사용자 ID 또는 비밀번호가 올바르지 않습니다.')
         }
