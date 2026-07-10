@@ -14,6 +14,16 @@ export default function Verify2FAPage() {
   const [verifying, setVerifying] = useState(false)
 
   useEffect(() => {
+    // 로그인 직후 진입한 경우에만 통과시키고, 새로고침/새 창으로 직접 접근하면 로그인 화면으로 되돌린다.
+    // 미완료 상태(aal1)의 세션이 남아있으면 /auth/login이 즉시 '/'로 되돌려보내
+    // 다시 2FA로 리다이렉트되는 루프가 생기므로, 세션 자체를 로그아웃시켜야 한다.
+    const fromLogin = sessionStorage.getItem('eduops_from_login')
+    sessionStorage.removeItem('eduops_from_login')
+    if (!fromLogin) {
+      createClient().auth.signOut().finally(() => router.replace('/auth/login'))
+      return
+    }
+
     const init = async () => {
       const supabase = createClient()
       const { data: factors } = await supabase.auth.mfa.listFactors()

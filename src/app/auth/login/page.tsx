@@ -56,6 +56,7 @@ function LoginForm() {
         return
       }
 
+      sessionStorage.setItem('eduops_from_login', '1')
       window.location.href = '/'
     } catch {
       setError('네트워크 오류가 발생했습니다.')
