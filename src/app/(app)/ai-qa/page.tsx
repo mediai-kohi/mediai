@@ -5,6 +5,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 interface Source {
   filename: string
   chunk_index: number
+  page_number?: number
 }
 
 interface Message {
@@ -78,9 +79,19 @@ function SourcesBadge({ sources }: { sources: Source[] }) {
   const [open, setOpen] = useState(false)
   if (!sources || sources.length === 0) return null
 
-  const unique = sources.filter(
-    (s, i, arr) => arr.findIndex((x) => x.filename === s.filename) === i
-  )
+  // 같은 문서의 여러 청크는 하나로 묶고, 페이지 번호는 모아서 표시
+  const grouped: { filename: string; pages: number[] }[] = []
+  for (const s of sources) {
+    let entry = grouped.find((g) => g.filename === s.filename)
+    if (!entry) {
+      entry = { filename: s.filename, pages: [] }
+      grouped.push(entry)
+    }
+    if (s.page_number && s.page_number > 0 && !entry.pages.includes(s.page_number)) {
+      entry.pages.push(s.page_number)
+    }
+  }
+  grouped.forEach((g) => g.pages.sort((a, b) => a - b))
 
   return (
     <div className="mt-2">
@@ -91,13 +102,16 @@ function SourcesBadge({ sources }: { sources: Source[] }) {
         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
         </svg>
-        출처 {unique.length}개 {open ? '▲' : '▼'}
+        출처 {grouped.length}개 {open ? '▲' : '▼'}
       </button>
       {open && (
         <div className="mt-1.5 flex flex-wrap gap-1.5">
-          {unique.map((s, i) => (
+          {grouped.map((g, i) => (
             <span key={i} className="inline-flex items-center px-2 py-0.5 bg-blue-50 text-blue-600 text-xs rounded-md border border-blue-100">
-              {s.filename}
+              {g.filename}
+              {g.pages.length > 0 && (
+                <span className="text-blue-400 ml-1">({g.pages.map((p) => `${p}p`).join(', ')})</span>
+              )}
             </span>
           ))}
         </div>

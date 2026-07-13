@@ -64,6 +64,7 @@ export default async function EditReportPage({
       reportId={id}
       initialWeeklyDate={initialWeeklyDate}
       initialWeeklyContent={content}
+      initialStatus={report.status}
       forceAllowSubmit={isResubmit}
       userProfile={{ organization: profile.organization }}
       initialAttachments={(attachments ?? []) as { id: string; filename: string; size: number }[]}

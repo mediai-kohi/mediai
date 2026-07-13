@@ -17,6 +17,7 @@ import { useRouter } from 'next/navigation'
 import ReportPreviewModal from './ReportPreviewModal'
 import {
   ReportMode,
+  ReportStatus,
   WeeklyContent,
   MonthlyBudget,
   KPI_LABELS, ACTIVITY_LABELS,
@@ -758,6 +759,7 @@ interface ReportFormProps {
   reportId?: string
   initialWeeklyDate?: string
   initialWeeklyContent?: WeeklyContent
+  initialStatus?: ReportStatus
   forceAllowSubmit?: boolean
   userProfile: UserProfile
   existingReports?: { id: string; type: string; period_start: string }[]
@@ -772,6 +774,7 @@ export default function ReportForm({
   reportId,
   initialWeeklyDate,
   initialWeeklyContent,
+  initialStatus,
   forceAllowSubmit = false,
   userProfile,
   existingReports,
@@ -974,8 +977,11 @@ export default function ReportForm({
     router.push(`/reports/${mode === 'create' ? data.id : reportId}`)
   }
 
-  const submitLabel = mode === 'resubmit' ? '재제출' : mode === 'edit' ? '저장' : '제출'
-  const showDraftBtn = mode !== 'edit'
+  // 임시저장된 리포트를 이어서 작성하는 경우(edit 모드 + 원본 상태가 draft)에는
+  // 제출 완료된 리포트를 수정하는 경우와 구분해 '임시저장'/'제출' 버튼을 따로 보여준다
+  const isDraftEdit = mode === 'edit' && initialStatus === 'draft'
+  const submitLabel = mode === 'resubmit' ? '재제출' : mode === 'edit' && !isDraftEdit ? '저장' : '제출'
+  const showDraftBtn = mode !== 'edit' || isDraftEdit
 
   // 사용하지 않는 변수 경고 방지
   void pastDeadline

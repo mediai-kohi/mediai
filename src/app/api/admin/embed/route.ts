@@ -20,6 +20,29 @@ function sanitizeText(text: string): string {
     .trim()
 }
 
+interface PdfTextItem { str: string; transform: number[] }
+interface PdfTextContent { items: PdfTextItem[] }
+interface PdfPageProxy { getTextContent(): Promise<PdfTextContent> }
+
+/** pdf-parse의 기본 pagerender와 동일한 방식으로 텍스트를 뽑되, 페이지별로 별도 배열에 수집한다 */
+function makePageCollector(pages: string[]) {
+  return async (pageData: PdfPageProxy): Promise<string> => {
+    const textContent = await pageData.getTextContent()
+    let lastY: number | undefined
+    let text = ''
+    for (const item of textContent.items) {
+      if (lastY === item.transform[5] || lastY === undefined) {
+        text += item.str
+      } else {
+        text += '\n' + item.str
+      }
+      lastY = item.transform[5]
+    }
+    pages.push(text)
+    return text
+  }
+}
+
 function chunkText(text: string, maxChars = 800): string[] {
   const sentences = text.split(/(?<=[.!?。\n])\s+/)
   const chunks: string[] = []
@@ -68,8 +91,9 @@ export async function POST(request: Request) {
     if (downloadError || !fileData) throw new Error('Download failed')
     const buffer = Buffer.from(await fileData.arrayBuffer())
 
-    // pdf-parse로 전체 텍스트 추출 (Node.js 전용, 브라우저 API 불필요)
-    const parsed = await pdfParse(buffer)
+    // pdf-parse로 페이지별 텍스트 추출 (Node.js 전용, 브라우저 API 불필요)
+    const pages: string[] = []
+    const parsed = await pdfParse(buffer, { pagerender: makePageCollector(pages) })
     const fullText = sanitizeText(parsed.text)
 
     if (!fullText) {
@@ -80,15 +104,26 @@ export async function POST(request: Request) {
     // 기존 청크 삭제
     await admin.from('document_chunks').delete().eq('document_id', documentId)
 
-    const chunks = chunkText(fullText)
+    // 페이지 단위로 청크를 나눠서 각 청크에 정확한 페이지 번호를 부여
+    const pageChunks: { content: string; page_number: number }[] = []
+    pages.forEach((pageText, idx) => {
+      const cleaned = sanitizeText(pageText)
+      if (!cleaned) return
+      chunkText(cleaned).forEach((content) => pageChunks.push({ content, page_number: idx + 1 }))
+    })
+    // pagerender가 페이지를 하나도 못 잡은 경우(구버전 pdf 등) 전체 텍스트로 폴백
+    if (pageChunks.length === 0) {
+      chunkText(fullText).forEach((content) => pageChunks.push({ content, page_number: 0 }))
+    }
+
     let totalChunks = 0
 
     // 임베딩 생성 및 저장 (배치: 3개씩)
     const BATCH = 3
-    for (let i = 0; i < chunks.length; i += BATCH) {
-      const batch = chunks.slice(i, i + BATCH)
+    for (let i = 0; i < pageChunks.length; i += BATCH) {
+      const batch = pageChunks.slice(i, i + BATCH)
       await Promise.all(
-        batch.map(async (content, batchIdx) => {
+        batch.map(async ({ content, page_number }, batchIdx) => {
           const chunkIndex = i + batchIdx
           const embedding = await embed(content)
           const { error: insertError } = await admin.from('document_chunks').insert({
@@ -96,7 +131,7 @@ export async function POST(request: Request) {
             content: sanitizeText(content),
             embedding: `[${embedding.join(',')}]`,
             chunk_index: chunkIndex,
-            page_number: 0,
+            page_number,
           })
           if (insertError) throw new Error(`청크 저장 실패: ${insertError.message}`)
         })
