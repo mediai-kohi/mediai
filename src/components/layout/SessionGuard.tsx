@@ -2,14 +2,27 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { getStayLoggedIn, STAY_LOGGED_IN_EVENT } from '@/lib/sessionPrefs'
 
 const IDLE_TIMEOUT = 2 * 60 * 60 * 1000  // 2시간
 const WARN_BEFORE  = 5 * 60 * 1000        // 만료 5분 전 경고
 const LS_KEY = 'eduops_last_activity'
 
 export default function SessionGuard() {
+  // 마이페이지에서 "로그인 상태 유지"를 켠 경우 idle 자동로그아웃을 적용하지 않는다
+  const [stayLoggedIn, setStayLoggedInState] = useState(false)
   const [showBanner, setShowBanner] = useState(false)
   const [remaining, setRemaining] = useState(0)
+
+  useEffect(() => {
+    setStayLoggedInState(getStayLoggedIn())
+    const onChange = (e: Event) => setStayLoggedInState((e as CustomEvent<boolean>).detail)
+    window.addEventListener(STAY_LOGGED_IN_EVENT, onChange)
+    window.addEventListener('storage', () => setStayLoggedInState(getStayLoggedIn()))
+    return () => window.removeEventListener(STAY_LOGGED_IN_EVENT, onChange)
+  }, [])
+
+  const applyTimeout = !stayLoggedIn
 
   const logout = useCallback(() => {
     localStorage.removeItem(LS_KEY)
@@ -21,15 +34,17 @@ export default function SessionGuard() {
 
   // 사용자 활동 시 타임스탬프 갱신
   useEffect(() => {
+    if (!applyTimeout) return
     const update = () => localStorage.setItem(LS_KEY, Date.now().toString())
     if (!localStorage.getItem(LS_KEY)) update()
     const events = ['mousemove', 'click', 'keydown', 'touchstart'] as const
     events.forEach(e => window.addEventListener(e, update, { passive: true }))
     return () => events.forEach(e => window.removeEventListener(e, update))
-  }, [])
+  }, [applyTimeout])
 
   // 1분마다 만료 여부 체크
   useEffect(() => {
+    if (!applyTimeout) { setShowBanner(false); return }
     const check = () => {
       const last = parseInt(localStorage.getItem(LS_KEY) ?? '0') || Date.now()
       const rem = IDLE_TIMEOUT - (Date.now() - last)
@@ -39,7 +54,7 @@ export default function SessionGuard() {
     check()
     const id = setInterval(check, 60 * 1000)
     return () => clearInterval(id)
-  }, [logout])
+  }, [applyTimeout, logout])
 
   // 앱 포커스 시 앱 아이콘 배지 초기화
   useEffect(() => {
@@ -51,7 +66,7 @@ export default function SessionGuard() {
 
   // 배너 표시 중 1초마다 카운트다운 갱신
   useEffect(() => {
-    if (!showBanner) return
+    if (!applyTimeout || !showBanner) return
     const id = setInterval(() => {
       const last = parseInt(localStorage.getItem(LS_KEY) ?? '0') || Date.now()
       const rem = IDLE_TIMEOUT - (Date.now() - last)
@@ -60,7 +75,7 @@ export default function SessionGuard() {
       setRemaining(Math.ceil(rem / 1000))
     }, 1000)
     return () => clearInterval(id)
-  }, [showBanner, logout])
+  }, [applyTimeout, showBanner, logout])
 
   const extendSession = () => {
     localStorage.setItem(LS_KEY, Date.now().toString())

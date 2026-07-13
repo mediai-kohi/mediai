@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import PushPermission from '@/components/notifications/PushPermission'
+import StayLoggedInToggle from '@/components/layout/StayLoggedInToggle'
 
 interface Profile {
   user_code: string
@@ -110,6 +111,16 @@ export default function MyPage() {
         </div>
         <div className="px-4 py-4">
           <PushPermission />
+        </div>
+      </section>
+
+      {/* Stay Logged In */}
+      <section className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+        <div className="px-4 py-3 border-b border-gray-100">
+          <h2 className="text-sm font-semibold text-gray-900">로그인 유지</h2>
+        </div>
+        <div className="px-4 py-4">
+          <StayLoggedInToggle />
         </div>
       </section>
 
