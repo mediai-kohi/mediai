@@ -1,7 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { redirect, notFound } from 'next/navigation'
-import { buildOverviewTable, type WeeklySummaryData } from '@/lib/weeklySummary'
+import { buildOverviewTable, sortByOverviewOrgOrder, type WeeklySummaryData } from '@/lib/weeklySummary'
 import PrintTrigger from '../print/PrintTrigger'
 import PrintButtons from '../print/PrintButtons'
 import {
@@ -49,9 +49,11 @@ export default async function BulkPrintPage({
     reportMap.set(r.id, r.content as WeeklyContent)
   }
 
-  const orgReports = snapshot.org_statuses
-    .filter((o) => o.report_id && reportMap.has(o.report_id))
-    .map((o) => ({ org: o.org, content: reportMap.get(o.report_id!)! }))
+  const orgReports = sortByOverviewOrgOrder(
+    snapshot.org_statuses
+      .filter((o) => o.report_id && reportMap.has(o.report_id))
+      .map((o) => ({ org: o.org, content: reportMap.get(o.report_id!)! }))
+  )
 
   if (orgReports.length === 0) notFound()
 
@@ -195,11 +197,28 @@ export default async function BulkPrintPage({
                 <tbody>
                   {KPI_LABELS.map((label, i) => {
                     const row = content.kpi_rows?.[i] ?? { target: '', actual: '' }
+                    const actualSub = (row as { actual_sub?: string }).actual_sub
+                    const isManpower = label === '전문인력 양성(명)'
+                    const isRegional = label === '지역확산(%)'
                     return (
                       <tr key={label}>
                         <td style={TD}>{label}</td>
                         <td style={{ ...TD, textAlign: 'right' }}>{fmtNum(row.target) || '—'}</td>
-                        <td style={{ ...TD, textAlign: 'right' }}>{fmtNum(row.actual) || '—'}</td>
+                        <td style={{ ...TD, textAlign: isManpower || isRegional ? 'left' : 'right' }}>
+                          {isManpower ? (
+                            <>
+                              <div>수료: {fmtNum(row.actual) || '—'}</div>
+                              <div>교육중: {fmtNum(actualSub ?? '') || '—'}</div>
+                            </>
+                          ) : isRegional ? (
+                            <>
+                              <div>비중: {row.actual ? `${fmtNum(row.actual)}%` : '—'}</div>
+                              <div>지역참여인원: {fmtNum(actualSub ?? '') || '—'}</div>
+                            </>
+                          ) : (
+                            fmtNum(row.actual) || '—'
+                          )}
+                        </td>
                         <td style={{ ...TD, textAlign: 'center' }}>{calcRate(row.target, row.actual)}</td>
                         <td style={TD}>{(row as { note?: string }).note || ''}</td>
                       </tr>

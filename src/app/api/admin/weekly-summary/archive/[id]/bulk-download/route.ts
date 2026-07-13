@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { NextResponse } from 'next/server'
 import ExcelJS from 'exceljs'
-import { buildOverviewTable, type WeeklySummaryData } from '@/lib/weeklySummary'
+import { buildOverviewTable, sortByOverviewOrgOrder, type WeeklySummaryData } from '@/lib/weeklySummary'
 import {
   KPI_LABELS, ACTIVITY_LABELS,
   calcBudgetRow, calcBudgetSubtotal, fmtNum, calcRate,
@@ -19,7 +19,7 @@ async function requireAdmin() {
   return { user, admin }
 }
 
-function buildOrgSheet(org: string, periodLabel: string, content: WeeklyContent): (string | number)[][] {
+function buildOrgSheet(ws: ExcelJS.Worksheet, org: string, periodLabel: string, content: WeeklyContent): void {
   const safeBudget = content.budget ?? {
     operator_gov: { budget: '', executed: '' },
     operator_self: { budget: '', executed: '' },
@@ -28,56 +28,67 @@ function buildOrgSheet(org: string, periodLabel: string, content: WeeklyContent)
   const opSelf = calcBudgetRow(safeBudget.operator_self)
   const total  = calcBudgetSubtotal(safeBudget.operator_gov, safeBudget.operator_self)
 
-  const rows: (string | number)[][] = []
+  ws.addRow(['주간 실적보고서'])
+  ws.addRow([periodLabel])
+  ws.addRow(['기관명', org])
+  ws.addRow([])
 
-  rows.push(['주간 실적보고서'])
-  rows.push([periodLabel])
-  rows.push(['기관명', org])
-  rows.push([])
+  ws.addRow(['1. 수행기관 정보'])
+  ws.addRow(['기관명', content.org_info?.operator ?? org])
+  ws.addRow([])
 
-  rows.push(['1. 수행기관 정보'])
-  rows.push(['기관명', content.org_info?.operator ?? org])
-  rows.push([])
-
-  rows.push(['2. 성과지표 달성 현황'])
-  rows.push(['지표명', '연간목표(A)', '누적실적(B)', '달성률(B/A)', '비고'])
+  ws.addRow(['2. 성과지표 달성 현황'])
+  ws.addRow(['지표명', '연간목표(A)', '누적실적(B)', '달성률(B/A)', '비고'])
   KPI_LABELS.forEach((label, i) => {
     const row = content.kpi_rows?.[i] ?? { target: '', actual: '' }
-    rows.push([
+    const actualSub = (row as { actual_sub?: string }).actual_sub
+    const isManpower = label === '전문인력 양성(명)'
+    const isRegional = label === '지역확산(%)'
+    const actualText = isManpower
+      ? `수료: ${fmtNum(row.actual) || '—'}\n교육중: ${fmtNum(actualSub ?? '') || '—'}`
+      : isRegional
+      ? `비중: ${row.actual ? `${fmtNum(row.actual)}%` : '—'}\n지역참여인원: ${fmtNum(actualSub ?? '') || '—'}`
+      : fmtNum(row.actual) || '—'
+    const excelRow = ws.addRow([
       label,
       fmtNum(row.target) || '—',
-      fmtNum(row.actual) || '—',
+      actualText,
       calcRate(row.target, row.actual),
       (row as { note?: string }).note || '',
     ])
+    if (isManpower || isRegional) {
+      excelRow.getCell(3).alignment = { wrapText: true, vertical: 'top' }
+    }
   })
-  rows.push([])
+  ws.addRow([])
 
-  rows.push(['3. 주간 실적 및 계획'])
-  rows.push(['구분', '이번주 실적', '다음주 계획', '비고'])
+  ws.addRow(['3. 주간 실적 및 계획'])
+  ws.addRow(['구분', '이번주 실적', '다음주 계획', '비고'])
   ACTIVITY_LABELS.forEach((label, i) => {
     const row = content.activity_rows?.[i] ?? { current_week: '', next_week: '', note: '' }
-    rows.push([label, row.current_week || '—', row.next_week || '—', row.note || '—'])
+    const excelRow = ws.addRow([label, row.current_week || '—', row.next_week || '—', row.note || '—'])
+    excelRow.getCell(2).alignment = { wrapText: true, vertical: 'top' }
+    excelRow.getCell(3).alignment = { wrapText: true, vertical: 'top' }
   })
-  rows.push([])
+  ws.addRow([])
 
-  rows.push(['4. 예산 집행현황'])
-  rows.push(['구분', '예산', '집행액', '집행잔액', '집행률'])
-  rows.push([
+  ws.addRow(['4. 예산 집행현황'])
+  ws.addRow(['구분', '예산', '집행액', '집행잔액', '집행률'])
+  ws.addRow([
     '국고보조금',
     fmtNum(safeBudget.operator_gov.budget) || '—',
     fmtNum(safeBudget.operator_gov.executed) || '—',
     opGov.budget ? opGov.remaining.toLocaleString('ko-KR') : '—',
     opGov.rate,
   ])
-  rows.push([
+  ws.addRow([
     '자기부담금',
     fmtNum(safeBudget.operator_self.budget) || '—',
     fmtNum(safeBudget.operator_self.executed) || '—',
     opSelf.budget ? opSelf.remaining.toLocaleString('ko-KR') : '—',
     opSelf.rate,
   ])
-  rows.push([
+  ws.addRow([
     '합계',
     total.budget ? total.budget.toLocaleString('ko-KR') : '—',
     total.executed ? total.executed.toLocaleString('ko-KR') : '—',
@@ -85,11 +96,10 @@ function buildOrgSheet(org: string, periodLabel: string, content: WeeklyContent)
     total.rate,
   ])
   if (content.budget_plan) {
-    rows.push([])
-    rows.push(['향후예산 활용계획', content.budget_plan])
+    ws.addRow([])
+    const planRow = ws.addRow(['향후예산 활용계획', content.budget_plan])
+    planRow.getCell(2).alignment = { wrapText: true, vertical: 'top' }
   }
-
-  return rows
 }
 
 export async function GET(
@@ -178,18 +188,17 @@ export async function GET(
   ;[18, 8, ...KPI_LABELS.map(() => 22)].forEach((w, i) => { summarySheet.getColumn(i + 1).width = w })
   for (const row of summaryRows) summarySheet.addRow(row)
 
-  // ── 기관별 시트 ──
-  for (const o of snapshot.org_statuses) {
+  // ── 기관별 시트 (총괄표와 동일한 기관 순서) ──
+  for (const o of sortByOverviewOrgOrder(snapshot.org_statuses)) {
     if (!o.report_id) continue
     const content = reportMap.get(o.report_id)
     if (!content) continue
 
-    const rows = buildOrgSheet(o.org, periodLabel, content)
     // Excel 시트명: 최대 31자, 특수문자 제거
     const sheetName = o.org.replace(/[/\\?*[\]:]/g, '').slice(0, 31)
     const ws = wb.addWorksheet(sheetName)
     ;[22, 28, 28, 18, 14].forEach((w, i) => { ws.getColumn(i + 1).width = w })
-    for (const row of rows) ws.addRow(row)
+    buildOrgSheet(ws, o.org, periodLabel, content)
   }
 
   const buf = Buffer.from(await wb.xlsx.writeBuffer())

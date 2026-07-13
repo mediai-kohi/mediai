@@ -278,11 +278,9 @@ function avgOfNonZero(nums: number[]): number {
   return nz.length > 0 ? sumOf(nz) / nz.length : 0
 }
 
-/** 관리자 주간실적요약 확정 시 다운로드되는 전체기관 총괄표 데이터 생성 */
-export function buildOverviewTable(
-  orgReportsInput: { org: string; content: WeeklyContent }[]
-): OverviewTable {
-  const orgReports = [...orgReportsInput].sort((a, b) => {
+/** 총괄표 고정 기관 순서(OVERVIEW_ORG_ORDER) 기준 정렬. 목록에 없는 기관은 원래 순서 그대로 뒤에 붙는다 */
+export function sortByOverviewOrgOrder<T extends { org: string }>(items: T[]): T[] {
+  return [...items].sort((a, b) => {
     const ai = OVERVIEW_ORG_ORDER.indexOf(a.org)
     const bi = OVERVIEW_ORG_ORDER.indexOf(b.org)
     if (ai === -1 && bi === -1) return 0
@@ -290,6 +288,13 @@ export function buildOverviewTable(
     if (bi === -1) return -1
     return ai - bi
   })
+}
+
+/** 관리자 주간실적요약 확정 시 다운로드되는 전체기관 총괄표 데이터 생성 */
+export function buildOverviewTable(
+  orgReportsInput: { org: string; content: WeeklyContent }[]
+): OverviewTable {
+  const orgReports = sortByOverviewOrgOrder(orgReportsInput)
   const orgs = orgReports.map((o) => o.org)
 
   const kpiVals = (i: number, field: 'target' | 'actual' | 'actual_sub'): number[] =>
