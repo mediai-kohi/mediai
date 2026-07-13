@@ -222,11 +222,23 @@ function assignBadge(orgStatuses: Omit<OrgStatus, 'badge'>[]): OrgStatus[] {
 
 // ─── 총괄표 (운영기관별 세부 실적 + 합계/달성률) ─────────────────────────────
 
+/** 총괄표 기관 컬럼 고정 순서 (organizations.name 기준). 목록에 없는 기관은 뒤에 원래 순서대로 붙는다 */
+export const OVERVIEW_ORG_ORDER = [
+  '삼성서울병원',
+  '서울대학교병원',
+  '순천향대학교 부속 천안병원',
+  '연세의료원',
+  '중앙대학교광명병원',
+  'KMI한국의학연구소',
+  '엔디에스',
+  '차의과학대학교 분당차병원',
+]
+
 export interface OverviewRow {
   label: string
-  values: string[] // 기관별 값 (orgs와 동일한 순서)
-  total: string     // 합계(개수형 지표) 또는 평균(비율형 지표)
-  rate: string       // 달성률 (목표 대비, 근거 없으면 '—')
+  isRate: boolean    // true면 달성률 행(기관별 값도 %로 표시)
+  values: string[]   // 기관별 값 (orgs와 동일한 순서)
+  total: string       // 합계(개수형 지표), 평균(비율형 지표) 또는 합계기준 달성률
 }
 
 export interface OverviewGroup {
@@ -234,9 +246,14 @@ export interface OverviewGroup {
   rows: OverviewRow[]
 }
 
+export interface OverviewSection {
+  section: string // '정량지표' | '예산집행'
+  groups: OverviewGroup[]
+}
+
 export interface OverviewTable {
   orgs: string[]
-  groups: OverviewGroup[]
+  sections: OverviewSection[]
 }
 
 function fmtOverviewNum(n: number): string {
@@ -252,10 +269,27 @@ function overviewRate(target: number, actual: number): string {
   return `${((actual / target) * 100).toFixed(1)}%`
 }
 
+function sumOf(nums: number[]): number {
+  return nums.reduce((a, b) => a + b, 0)
+}
+
+function avgOfNonZero(nums: number[]): number {
+  const nz = nums.filter((v) => v > 0)
+  return nz.length > 0 ? sumOf(nz) / nz.length : 0
+}
+
 /** 관리자 주간실적요약 확정 시 다운로드되는 전체기관 총괄표 데이터 생성 */
 export function buildOverviewTable(
-  orgReports: { org: string; content: WeeklyContent }[]
+  orgReportsInput: { org: string; content: WeeklyContent }[]
 ): OverviewTable {
+  const orgReports = [...orgReportsInput].sort((a, b) => {
+    const ai = OVERVIEW_ORG_ORDER.indexOf(a.org)
+    const bi = OVERVIEW_ORG_ORDER.indexOf(b.org)
+    if (ai === -1 && bi === -1) return 0
+    if (ai === -1) return 1
+    if (bi === -1) return -1
+    return ai - bi
+  })
   const orgs = orgReports.map((o) => o.org)
 
   const kpiVals = (i: number, field: 'target' | 'actual' | 'actual_sub'): number[] =>
@@ -264,102 +298,153 @@ export function buildOverviewTable(
       return parseNum(row?.[field])
     })
 
-  // 개수/합산형 지표 (프로그램 운영 수, 인원, 건수 등)
-  const countRow = (
-    label: string,
-    i: number,
-    field: 'target' | 'actual' | 'actual_sub',
-    rateTargetField?: 'target' | 'actual'
-  ): OverviewRow => {
+  // 개수/합산형 지표 값 행 (프로그램 운영 수, 인원, 건수 등)
+  const countValueRow = (label: string, i: number, field: 'target' | 'actual' | 'actual_sub'): OverviewRow => {
     const vals = kpiVals(i, field)
-    const total = vals.reduce((a, b) => a + b, 0)
-    const rate = rateTargetField
-      ? overviewRate(kpiVals(i, rateTargetField).reduce((a, b) => a + b, 0), total)
-      : '—'
-    return { label, values: vals.map(fmtOverviewNum), total: fmtOverviewNum(total), rate }
+    return { label, isRate: false, values: vals.map(fmtOverviewNum), total: fmtOverviewNum(sumOf(vals)) }
   }
 
-  // 비율/점수형 지표 (수료율, 만족도, 지역확산 등) — 평균으로 집계
-  const avgRow = (
-    label: string,
-    i: number,
-    field: 'target' | 'actual',
-    rateTargetField?: 'target' | 'actual'
-  ): OverviewRow => {
+  // 비율/점수형 지표 값 행 (수료율, 만족도, 지역확산 등) — 평균으로 집계
+  const avgValueRow = (label: string, i: number, field: 'target' | 'actual'): OverviewRow => {
     const vals = kpiVals(i, field)
-    const nz = vals.filter((v) => v > 0)
-    const total = nz.length > 0 ? nz.reduce((a, b) => a + b, 0) / nz.length : 0
-    let rate = '—'
-    if (rateTargetField) {
-      const tz = kpiVals(i, rateTargetField).filter((v) => v > 0)
-      const targetAvg = tz.length > 0 ? tz.reduce((a, b) => a + b, 0) / tz.length : 0
-      rate = overviewRate(targetAvg, total)
-    }
-    return { label, values: vals.map(fmtOverviewNum), total: fmtOverviewNum(total), rate }
+    return { label, isRate: false, values: vals.map(fmtOverviewNum), total: fmtOverviewNum(avgOfNonZero(vals)) }
+  }
+
+  // 달성률 행: 기관별로 각자의 목표(A) 대비 실적(B) 비율을 계산 + 합계 기준 달성률
+  const rateRow = (
+    i: number,
+    targetField: 'target' | 'actual',
+    actualField: 'target' | 'actual',
+    isAvg: boolean
+  ): OverviewRow => {
+    const targets = kpiVals(i, targetField)
+    const actuals = kpiVals(i, actualField)
+    const values = orgReports.map((_, idx) => overviewRate(targets[idx], actuals[idx]))
+    const targetTotal = isAvg ? avgOfNonZero(targets) : sumOf(targets)
+    const actualTotal = isAvg ? avgOfNonZero(actuals) : sumOf(actuals)
+    return { label: '달성률', isRate: true, values, total: overviewRate(targetTotal, actualTotal) }
+  }
+
+  // 지역확산(%) 합계: 전체기관 지역참여인원 합계 / 수료인원 합계 (기관별 값은 각자의 계산된 비중 유지)
+  const regionalTotalRate = (() => {
+    const participants = sumOf(kpiVals(4, 'actual_sub'))
+    const graduates = sumOf(kpiVals(1, 'actual'))
+    return graduates > 0 ? (participants / graduates) * 100 : 0
+  })()
+  const regionalValueRow = (): OverviewRow => {
+    const vals = kpiVals(4, 'actual')
+    return { label: '지역확산(%)', isRate: false, values: vals.map(fmtOverviewNum), total: fmtOverviewNum(regionalTotalRate) }
+  }
+  const regionalRateRow = (): OverviewRow => {
+    const targets = kpiVals(4, 'target')
+    const actuals = kpiVals(4, 'actual')
+    const values = orgReports.map((_, idx) => overviewRate(targets[idx], actuals[idx]))
+    const targetTotal = avgOfNonZero(targets)
+    return { label: '달성률', isRate: true, values, total: overviewRate(targetTotal, regionalTotalRate) }
   }
 
   // 예산 (천원 단위)
-  const budgetVals = (kind: 'operator_gov' | 'operator_self', field: 'budget' | 'executed'): number[] =>
+  const budgetNums = (kind: 'operator_gov' | 'operator_self', field: 'budget' | 'executed'): number[] =>
     orgReports.map((o) => parseNum(o.content.budget?.[kind]?.[field]) / 1000)
+  const budgetTotalNums = (field: 'budget' | 'executed'): number[] =>
+    orgReports.map(
+      (o) =>
+        (parseNum(o.content.budget?.operator_gov?.[field]) + parseNum(o.content.budget?.operator_self?.[field])) /
+        1000
+    )
 
-  const budgetRow = (
-    label: string,
-    kind: 'operator_gov' | 'operator_self',
-    field: 'budget' | 'executed',
-    rateAgainstBudget = false
-  ): OverviewRow => {
-    const vals = budgetVals(kind, field)
-    const total = vals.reduce((a, b) => a + b, 0)
-    const rate = rateAgainstBudget
-      ? overviewRate(budgetVals(kind, 'budget').reduce((a, b) => a + b, 0), total)
-      : '—'
-    return { label, values: vals.map(fmtOverviewNum), total: fmtOverviewNum(total), rate }
-  }
+  const budgetValueRow = (label: string, vals: number[]): OverviewRow => ({
+    label,
+    isRate: false,
+    values: vals.map(fmtOverviewNum),
+    total: fmtOverviewNum(sumOf(vals)),
+  })
 
-  const groups: OverviewGroup[] = [
+  const budgetRateRow = (budgetVals: number[], executedVals: number[]): OverviewRow => ({
+    label: '달성률',
+    isRate: true,
+    values: budgetVals.map((b, idx) => overviewRate(b, executedVals[idx])),
+    total: overviewRate(sumOf(budgetVals), sumOf(executedVals)),
+  })
+
+  const govBudget = budgetNums('operator_gov', 'budget')
+  const govExecuted = budgetNums('operator_gov', 'executed')
+  const selfBudget = budgetNums('operator_self', 'budget')
+  const selfExecuted = budgetNums('operator_self', 'executed')
+  const totalBudget = budgetTotalNums('budget')
+  const totalExecuted = budgetTotalNums('executed')
+
+  const sections: OverviewSection[] = [
     {
-      group: '프로그램 개발·운영',
-      rows: [
-        countRow('개발(개)', 0, 'target'),
-        countRow('운영(개)', 0, 'actual', 'target'),
+      section: '정량지표',
+      groups: [
+        {
+          group: '프로그램 개발·운영',
+          rows: [
+            countValueRow('개발(개)', 0, 'target'),
+            countValueRow('운영(개)', 0, 'actual'),
+            rateRow(0, 'target', 'actual', false),
+          ],
+        },
+        {
+          group: '전문인력 양성',
+          rows: [
+            countValueRow('목표(명)', 1, 'target'),
+            countValueRow('수료(명)', 1, 'actual'),
+            countValueRow('교육중(명)', 1, 'actual_sub'),
+            rateRow(1, 'target', 'actual', false),
+          ],
+        },
+        {
+          group: '교육과정 수료율',
+          rows: [avgValueRow('수료율(%)', 2, 'actual'), rateRow(2, 'target', 'actual', true)],
+        },
+        {
+          group: '만족도조사',
+          rows: [avgValueRow('만족도(점)', 3, 'actual'), rateRow(3, 'target', 'actual', true)],
+        },
+        {
+          group: '지역확산',
+          rows: [regionalValueRow(), regionalRateRow()],
+        },
+        {
+          group: '홍보',
+          rows: [countValueRow('홍보(건)', 5, 'actual'), rateRow(5, 'target', 'actual', false)],
+        },
       ],
     },
     {
-      group: '전문인력 양성',
-      rows: [
-        countRow('목표(명)', 1, 'target'),
-        countRow('수료(명)', 1, 'actual', 'target'),
-        countRow('교육중(명)', 1, 'actual_sub'),
-      ],
-    },
-    {
-      group: '교육과정 수료율',
-      rows: [avgRow('수료율(%)', 2, 'actual', 'target')],
-    },
-    {
-      group: '만족도조사',
-      rows: [avgRow('만족도(점)', 3, 'actual', 'target')],
-    },
-    {
-      group: '지역확산',
-      rows: [avgRow('지역확산(%)', 4, 'actual', 'target')],
-    },
-    {
-      group: '홍보',
-      rows: [countRow('홍보(건)', 5, 'actual', 'target')],
-    },
-    {
-      group: '예산집행',
-      rows: [
-        budgetRow('국고보조금 예산(천원)', 'operator_gov', 'budget'),
-        budgetRow('국고보조금 집행(천원)', 'operator_gov', 'executed', true),
-        budgetRow('자기부담금 예산(천원)', 'operator_self', 'budget'),
-        budgetRow('자기부담금 집행(천원)', 'operator_self', 'executed', true),
+      section: '예산집행',
+      groups: [
+        {
+          group: '국고보조금',
+          rows: [
+            budgetValueRow('예산(천원)', govBudget),
+            budgetValueRow('집행(천원)', govExecuted),
+            budgetRateRow(govBudget, govExecuted),
+          ],
+        },
+        {
+          group: '자기부담금',
+          rows: [
+            budgetValueRow('예산(천원)', selfBudget),
+            budgetValueRow('집행(천원)', selfExecuted),
+            budgetRateRow(selfBudget, selfExecuted),
+          ],
+        },
+        {
+          group: '합계',
+          rows: [
+            budgetValueRow('예산(천원)', totalBudget),
+            budgetValueRow('집행(천원)', totalExecuted),
+            budgetRateRow(totalBudget, totalExecuted),
+          ],
+        },
       ],
     },
   ]
 
-  return { orgs, groups }
+  return { orgs, sections }
 }
 
 // ─── 핵심 집계 함수 ───────────────────────────────────────────────────────────

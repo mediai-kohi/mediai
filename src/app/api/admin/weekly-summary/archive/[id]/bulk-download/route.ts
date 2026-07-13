@@ -139,20 +139,25 @@ export async function GET(
   // ── 시트 1: 총괄표 (전체 기관 합산) ──
   const overview = buildOverviewTable(orgReports)
   const overviewSheet = wb.addWorksheet('총괄표')
-  ;[16, 22, 12, 10, ...overview.orgs.map(() => 14)].forEach((w, i) => { overviewSheet.getColumn(i + 1).width = w })
+  ;[12, 16, 20, 12, ...overview.orgs.map(() => 14)].forEach((w, i) => { overviewSheet.getColumn(i + 1).width = w })
   overviewSheet.addRow([`${periodLabel} 총괄표`])
   overviewSheet.addRow([])
-  overviewSheet.addRow(['구분', '세부항목', '합계', '달성률', ...overview.orgs])
+  overviewSheet.addRow(['구분', '세부그룹', '세부항목', '합계', ...overview.orgs])
 
   let overviewRowNum = 4
-  for (const g of overview.groups) {
-    const startRow = overviewRowNum
-    for (const r of g.rows) {
-      overviewSheet.addRow([g.group, r.label, r.total, r.rate, ...r.values])
-      overviewRowNum++
+  for (const sec of overview.sections) {
+    const sectionStartRow = overviewRowNum
+    for (const g of sec.groups) {
+      const groupStartRow = overviewRowNum
+      for (const r of g.rows) {
+        overviewSheet.addRow([sec.section, g.group, r.label, r.total, ...r.values])
+        overviewRowNum++
+      }
+      const groupEndRow = overviewRowNum - 1
+      if (groupEndRow > groupStartRow) overviewSheet.mergeCells(groupStartRow, 2, groupEndRow, 2)
     }
-    const endRow = overviewRowNum - 1
-    if (endRow > startRow) overviewSheet.mergeCells(startRow, 1, endRow, 1)
+    const sectionEndRow = overviewRowNum - 1
+    if (sectionEndRow > sectionStartRow) overviewSheet.mergeCells(sectionStartRow, 1, sectionEndRow, 1)
   }
 
   // ── 시트 2: 전체 요약 ──

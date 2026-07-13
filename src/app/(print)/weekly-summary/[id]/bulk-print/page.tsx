@@ -93,42 +93,58 @@ export default async function BulkPrintPage({
       <PrintButtons />
 
       {/* 총괄표: 전체 운영기관 합산 */}
-      <div className="page-break">
-        <div className="no-break" style={{ textAlign: 'center', marginBottom: 16 }}>
-          <h1 style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>운영기관별 세부 실적 총괄표</h1>
-          <p style={{ fontSize: 10, color: '#444' }}>{periodLabel}</p>
-        </div>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr>
-              <th style={{ ...TH, width: 66 }}>구분</th>
-              <th style={{ ...TH, width: 110 }}>세부항목</th>
-              <th style={{ ...TH, width: 60 }}>합계</th>
-              <th style={{ ...TH, width: 50 }}>달성률</th>
-              {overview.orgs.map((org) => (
-                <th key={org} style={TH}>{org}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {overview.groups.map((g) =>
-              g.rows.map((r, ri) => (
-                <tr key={`${g.group}-${r.label}`}>
-                  {ri === 0 && (
-                    <th rowSpan={g.rows.length} style={{ ...TH, textAlign: 'left' }}>{g.group}</th>
-                  )}
-                  <td style={TD}>{r.label}</td>
-                  <td style={{ ...TD, textAlign: 'right', fontWeight: 700 }}>{r.total}</td>
-                  <td style={{ ...TD, textAlign: 'center', fontWeight: 700, color: '#1d4ed8' }}>{r.rate}</td>
-                  {r.values.map((v, vi) => (
-                    <td key={vi} style={{ ...TD, textAlign: 'right' }}>{v}</td>
+      {(() => {
+        const overviewTH: React.CSSProperties = { ...TH, fontSize: 8, padding: '3px 4px' }
+        const overviewTD: React.CSSProperties = { ...TD, fontSize: 8, padding: '3px 4px' }
+        return (
+          <div className="page-break">
+            <div className="no-break" style={{ textAlign: 'center', marginBottom: 16 }}>
+              <h1 style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>운영기관별 세부 실적 총괄표</h1>
+              <p style={{ fontSize: 10, color: '#444' }}>{periodLabel}</p>
+            </div>
+            <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+              <thead>
+                <tr>
+                  <th style={{ ...overviewTH, width: 44 }}>구분</th>
+                  <th style={{ ...overviewTH, width: 62 }}>세부그룹</th>
+                  <th style={{ ...overviewTH, width: 78 }}>세부항목</th>
+                  <th style={{ ...overviewTH, width: 44 }}>합계</th>
+                  {overview.orgs.map((org) => (
+                    <th key={org} style={overviewTH}>{org}</th>
                   ))}
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+              </thead>
+              <tbody>
+                {overview.sections.map((sec) => {
+                  const sectionRowCount = sec.groups.reduce((sum, g) => sum + g.rows.length, 0)
+                  let sectionRowIdx = 0
+                  return sec.groups.map((g) =>
+                    g.rows.map((r, ri) => {
+                      const isFirstOfSection = sectionRowIdx === 0
+                      sectionRowIdx++
+                      return (
+                        <tr key={`${sec.section}-${g.group}-${r.label}`}>
+                          {isFirstOfSection && (
+                            <th rowSpan={sectionRowCount} style={{ ...overviewTH, textAlign: 'left' }}>{sec.section}</th>
+                          )}
+                          {ri === 0 && (
+                            <th rowSpan={g.rows.length} style={{ ...overviewTH, textAlign: 'left' }}>{g.group}</th>
+                          )}
+                          <td style={{ ...overviewTD, fontWeight: r.isRate ? 700 : 400, color: r.isRate ? '#1d4ed8' : undefined }}>{r.label}</td>
+                          <td style={{ ...overviewTD, textAlign: r.isRate ? 'center' : 'right', fontWeight: 700, color: r.isRate ? '#1d4ed8' : undefined }}>{r.total}</td>
+                          {r.values.map((v, vi) => (
+                            <td key={vi} style={{ ...overviewTD, textAlign: r.isRate ? 'center' : 'right', color: r.isRate ? '#1d4ed8' : undefined, fontWeight: r.isRate ? 700 : 400 }}>{v}</td>
+                          ))}
+                        </tr>
+                      )
+                    })
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )
+      })()}
 
       {orgReports.map(({ org, content }, idx) => {
         const safeBudget = content.budget ?? {
