@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { NextResponse } from 'next/server'
 import ExcelJS from 'exceljs'
-import type { WeeklySummaryData } from '@/lib/weeklySummary'
+import { buildOverviewTable, type WeeklySummaryData } from '@/lib/weeklySummary'
 import {
   KPI_LABELS, ACTIVITY_LABELS,
   calcBudgetRow, calcBudgetSubtotal, fmtNum, calcRate,
@@ -132,7 +132,30 @@ export async function GET(
 
   const wb = new ExcelJS.Workbook()
 
-  // ── 시트 1: 전체 요약 ──
+  const orgReports = snapshot.org_statuses
+    .filter((o) => o.report_id && reportMap.has(o.report_id))
+    .map((o) => ({ org: o.org, content: reportMap.get(o.report_id!)! }))
+
+  // ── 시트 1: 총괄표 (전체 기관 합산) ──
+  const overview = buildOverviewTable(orgReports)
+  const overviewSheet = wb.addWorksheet('총괄표')
+  ;[16, 22, 12, 10, ...overview.orgs.map(() => 14)].forEach((w, i) => { overviewSheet.getColumn(i + 1).width = w })
+  overviewSheet.addRow([`${periodLabel} 총괄표`])
+  overviewSheet.addRow([])
+  overviewSheet.addRow(['구분', '세부항목', '합계', '달성률', ...overview.orgs])
+
+  let overviewRowNum = 4
+  for (const g of overview.groups) {
+    const startRow = overviewRowNum
+    for (const r of g.rows) {
+      overviewSheet.addRow([g.group, r.label, r.total, r.rate, ...r.values])
+      overviewRowNum++
+    }
+    const endRow = overviewRowNum - 1
+    if (endRow > startRow) overviewSheet.mergeCells(startRow, 1, endRow, 1)
+  }
+
+  // ── 시트 2: 전체 요약 ──
   const summaryRows: (string | number)[][] = [
     [`${periodLabel} 기관별 실적 요약`],
     [],

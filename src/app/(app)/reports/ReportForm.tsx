@@ -336,10 +336,9 @@ const TH_BASE = 'border border-gray-300 bg-gray-50 px-2 py-1.5 text-xs font-semi
 const TD_BASE = 'border border-gray-300 px-2 py-1 text-xs text-gray-800'
 
 const KPI_HINTS: Record<string, string> = {
-  '홍보(건)': '월 1회 이상',
-  '수료율(%)': '수료인원/참여인원',
+  '수료율(%)': '수료인원/승인인원',
   '만족도 점수(점)': '100점 만점 기준',
-  '지역확산(%)': '수도권 이외 지역의료기관 참여인원 비중 (전문인력 양성 수료인원 기준 자동계산)',
+  '지역확산(%)': '수도권 이외 지역의료기관 참여인원 비중',
 }
 
 // ─────────────────────────────────────────────────
@@ -490,6 +489,17 @@ function WeeklyFormBody({
                       {isProgram ? (
                         <div className="flex items-center gap-1">
                           <span className="text-[10px] text-gray-400 w-6 flex-shrink-0 text-right">개발</span>
+                          <NumInput
+                            value={row.target}
+                            onChange={(v) => setKpi(i, { target: v })}
+                            className={numCls}
+                            placeholder={prevRow?.target ? fmtNum(prevRow.target) : '0'}
+                            decimal
+                          />
+                        </div>
+                      ) : isPromo ? (
+                        <div className="flex items-center gap-1">
+                          <span className="text-[10px] text-gray-400 flex-shrink-0 text-right whitespace-nowrap">월 1회 이상</span>
                           <NumInput
                             value={row.target}
                             onChange={(v) => setKpi(i, { target: v })}

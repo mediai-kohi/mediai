@@ -220,6 +220,148 @@ function assignBadge(orgStatuses: Omit<OrgStatus, 'badge'>[]): OrgStatus[] {
   })
 }
 
+// ─── 총괄표 (운영기관별 세부 실적 + 합계/달성률) ─────────────────────────────
+
+export interface OverviewRow {
+  label: string
+  values: string[] // 기관별 값 (orgs와 동일한 순서)
+  total: string     // 합계(개수형 지표) 또는 평균(비율형 지표)
+  rate: string       // 달성률 (목표 대비, 근거 없으면 '—')
+}
+
+export interface OverviewGroup {
+  group: string
+  rows: OverviewRow[]
+}
+
+export interface OverviewTable {
+  orgs: string[]
+  groups: OverviewGroup[]
+}
+
+function fmtOverviewNum(n: number): string {
+  if (!n) return '—'
+  const rounded = Math.round(n * 10) / 10
+  return Number.isInteger(rounded)
+    ? rounded.toLocaleString('ko-KR')
+    : rounded.toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+}
+
+function overviewRate(target: number, actual: number): string {
+  if (!target) return '—'
+  return `${((actual / target) * 100).toFixed(1)}%`
+}
+
+/** 관리자 주간실적요약 확정 시 다운로드되는 전체기관 총괄표 데이터 생성 */
+export function buildOverviewTable(
+  orgReports: { org: string; content: WeeklyContent }[]
+): OverviewTable {
+  const orgs = orgReports.map((o) => o.org)
+
+  const kpiVals = (i: number, field: 'target' | 'actual' | 'actual_sub'): number[] =>
+    orgReports.map((o) => {
+      const row = o.content.kpi_rows?.[i] as (KpiRow & { actual_sub?: string }) | undefined
+      return parseNum(row?.[field])
+    })
+
+  // 개수/합산형 지표 (프로그램 운영 수, 인원, 건수 등)
+  const countRow = (
+    label: string,
+    i: number,
+    field: 'target' | 'actual' | 'actual_sub',
+    rateTargetField?: 'target' | 'actual'
+  ): OverviewRow => {
+    const vals = kpiVals(i, field)
+    const total = vals.reduce((a, b) => a + b, 0)
+    const rate = rateTargetField
+      ? overviewRate(kpiVals(i, rateTargetField).reduce((a, b) => a + b, 0), total)
+      : '—'
+    return { label, values: vals.map(fmtOverviewNum), total: fmtOverviewNum(total), rate }
+  }
+
+  // 비율/점수형 지표 (수료율, 만족도, 지역확산 등) — 평균으로 집계
+  const avgRow = (
+    label: string,
+    i: number,
+    field: 'target' | 'actual',
+    rateTargetField?: 'target' | 'actual'
+  ): OverviewRow => {
+    const vals = kpiVals(i, field)
+    const nz = vals.filter((v) => v > 0)
+    const total = nz.length > 0 ? nz.reduce((a, b) => a + b, 0) / nz.length : 0
+    let rate = '—'
+    if (rateTargetField) {
+      const tz = kpiVals(i, rateTargetField).filter((v) => v > 0)
+      const targetAvg = tz.length > 0 ? tz.reduce((a, b) => a + b, 0) / tz.length : 0
+      rate = overviewRate(targetAvg, total)
+    }
+    return { label, values: vals.map(fmtOverviewNum), total: fmtOverviewNum(total), rate }
+  }
+
+  // 예산 (천원 단위)
+  const budgetVals = (kind: 'operator_gov' | 'operator_self', field: 'budget' | 'executed'): number[] =>
+    orgReports.map((o) => parseNum(o.content.budget?.[kind]?.[field]) / 1000)
+
+  const budgetRow = (
+    label: string,
+    kind: 'operator_gov' | 'operator_self',
+    field: 'budget' | 'executed',
+    rateAgainstBudget = false
+  ): OverviewRow => {
+    const vals = budgetVals(kind, field)
+    const total = vals.reduce((a, b) => a + b, 0)
+    const rate = rateAgainstBudget
+      ? overviewRate(budgetVals(kind, 'budget').reduce((a, b) => a + b, 0), total)
+      : '—'
+    return { label, values: vals.map(fmtOverviewNum), total: fmtOverviewNum(total), rate }
+  }
+
+  const groups: OverviewGroup[] = [
+    {
+      group: '프로그램 개발·운영',
+      rows: [
+        countRow('개발(개)', 0, 'target'),
+        countRow('운영(개)', 0, 'actual', 'target'),
+      ],
+    },
+    {
+      group: '전문인력 양성',
+      rows: [
+        countRow('목표(명)', 1, 'target'),
+        countRow('수료(명)', 1, 'actual', 'target'),
+        countRow('교육중(명)', 1, 'actual_sub'),
+      ],
+    },
+    {
+      group: '교육과정 수료율',
+      rows: [avgRow('수료율(%)', 2, 'actual', 'target')],
+    },
+    {
+      group: '만족도조사',
+      rows: [avgRow('만족도(점)', 3, 'actual', 'target')],
+    },
+    {
+      group: '지역확산',
+      rows: [avgRow('지역확산(%)', 4, 'actual', 'target')],
+    },
+    {
+      group: '홍보',
+      rows: [countRow('홍보(건)', 5, 'actual', 'target')],
+    },
+    {
+      group: '예산집행',
+      rows: [
+        budgetRow('국고보조금 예산(천원)', 'operator_gov', 'budget'),
+        budgetRow('국고보조금 집행(천원)', 'operator_gov', 'executed', true),
+        budgetRow('자기부담금 예산(천원)', 'operator_self', 'budget'),
+        budgetRow('자기부담금 집행(천원)', 'operator_self', 'executed', true),
+      ],
+    },
+  ]
+
+  return { orgs, groups }
+}
+
 // ─── 핵심 집계 함수 ───────────────────────────────────────────────────────────
 
 export function computeWeeklySummary(
@@ -295,18 +437,26 @@ export function computeWeeklySummary(
     return { label, target: Math.round(target * 10) / 10, actual: Math.round(actual * 10) / 10, rate }
   })
 
+  // 지역기관 참여율(헤드라인 전용): 전체기관 지역참여인원 합계 / 수료인원 합계
+  const regionalParticipants = activeOrgs.reduce((sum, o) => sum + parseNum(o.kpi_rows?.[4]?.actual_sub), 0)
+  const regionalGraduates = activeOrgs.reduce((sum, o) => sum + parseNum(o.kpi_rows?.[1]?.actual), 0)
+  const regionalParticipationRate = regionalGraduates > 0 ? (regionalParticipants / regionalGraduates) * 100 : 0
+
   // 4개 헤드라인 카드
   const headline_kpis: HeadlineKpi[] = HEADLINE_KPI_CONFIG.map((cfg) => {
     const tot = kpi_totals[cfg.kpiIndex]
+    const actualValue = cfg.kpiIndex === 4
+      ? Math.round(regionalParticipationRate * 10) / 10
+      : tot.actual
     const target = cfg.fixedTarget !== null ? cfg.fixedTarget : tot.target
-    const rateNum = target > 0 ? (tot.actual / target) * 100 : 0
+    const rateNum = target > 0 ? (actualValue / target) * 100 : 0
     const progress = Math.min(rateNum, 100)
     return {
       label: cfg.label,
       labelEn: cfg.labelEn,
       unit: cfg.unit,
       color: cfg.color,
-      actual: tot.actual,
+      actual: actualValue,
       target,
       rate: Math.round(rateNum * 10) / 10,
       progress: Math.round(progress * 10) / 10,

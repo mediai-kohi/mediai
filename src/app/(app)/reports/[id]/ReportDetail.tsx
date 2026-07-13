@@ -99,12 +99,12 @@ function WeeklyDetail({ content }: { content: WeeklyContent }) {
       <section>
         <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">성과지표 달성 현황</h3>
         <div className="overflow-x-auto rounded-lg border border-gray-200">
-          <table className="w-full border-collapse min-w-[420px]">
+          <table className="w-full border-collapse table-fixed min-w-[420px]">
             <thead>
               <tr>
                 <th className={`${TH} w-28`}>지표명</th>
-                <th className={`${TH}`}>연간목표(A)</th>
-                <th className={`${TH}`}>누적실적(B)</th>
+                <th className={`${TH} w-1/5`}>연간목표(A)</th>
+                <th className={`${TH} w-1/5`}>누적실적(B)</th>
                 <th className={`${TH} w-20`}>달성률</th>
                 <th className={`${TH} w-28`}>비고</th>
               </tr>
@@ -146,12 +146,12 @@ function WeeklyDetail({ content }: { content: WeeklyContent }) {
       <section>
         <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">주간 실적 및 계획</h3>
         <div className="overflow-x-auto rounded-lg border border-gray-200">
-          <table className="w-full border-collapse min-w-[480px]">
+          <table className="w-full border-collapse table-fixed min-w-[480px]">
             <thead>
               <tr>
                 <th className={`${TH} w-20`}>구분</th>
-                <th className={TH}>이번주 실적</th>
-                <th className={TH}>다음주 계획</th>
+                <th className={`${TH} w-[38%]`}>이번주 실적</th>
+                <th className={`${TH} w-[38%]`}>다음주 계획</th>
                 <th className={`${TH} w-24`}>비고</th>
               </tr>
             </thead>
