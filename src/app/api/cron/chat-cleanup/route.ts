@@ -1,4 +1,5 @@
 ﻿import { createAdminClient } from '@/lib/supabase/admin'
+import { CHAT_HISTORY_RETENTION_MS } from '@/lib/kst'
 import { NextResponse } from 'next/server'
 
 export async function GET(request: Request) {
@@ -9,8 +10,7 @@ export async function GET(request: Request) {
 
   const admin = createAdminClient()
 
-  const cutoff = new Date()
-  cutoff.setDate(cutoff.getDate() - 30)
+  const cutoff = new Date(Date.now() - CHAT_HISTORY_RETENTION_MS)
 
   const { error, count } = await admin
     .from('chat_histories')

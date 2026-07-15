@@ -21,6 +21,12 @@ interface Document {
   created_at: string
 }
 
+interface DayEntry {
+  date: string
+  label: string
+  isToday: boolean
+}
+
 function DocumentList() {
   const [docs, setDocs] = useState<Document[]>([])
   const [open, setOpen] = useState(false)
@@ -139,26 +145,49 @@ export default function AiQaPage() {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [historyLoading, setHistoryLoading] = useState(true)
+  const [days, setDays] = useState<DayEntry[]>([])
+  const [selectedDate, setSelectedDate] = useState<string | null>(null)
+  const [todayKey, setTodayKey] = useState<string | null>(null)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const abortRef = useRef<AbortController | null>(null)
 
-  // 이전 대화 로드 (30일 이내)
-  useEffect(() => {
-    fetch('/api/chat/history')
+  const viewingPast = selectedDate !== null && todayKey !== null && selectedDate !== todayKey
+
+  const refreshDays = useCallback(() => {
+    fetch('/api/chat/history/days')
       .then((r) => r.json())
-      .then((data: { id: string; role: 'user' | 'assistant'; content: string; sources: Source[] }[]) => {
-        if (Array.isArray(data)) {
-          setMessages(data.map((m) => ({
+      .then((data: DayEntry[]) => { if (Array.isArray(data)) setDays(data) })
+      .catch(() => {})
+  }, [])
+
+  const loadDay = useCallback((date?: string) => {
+    setHistoryLoading(true)
+    const url = date ? `/api/chat/history?date=${date}` : '/api/chat/history'
+    fetch(url)
+      .then((r) => r.json())
+      .then((data: { date: string; isToday: boolean; messages: { id: string; role: 'user' | 'assistant'; content: string; sources: Source[] }[] }) => {
+        if (data && Array.isArray(data.messages)) {
+          setMessages(data.messages.map((m) => ({
             id: m.id,
             role: m.role,
             content: m.content,
             sources: m.sources ?? [],
           })))
+          setSelectedDate(data.date)
+          if (data.isToday) setTodayKey(data.date)
         }
       })
       .finally(() => setHistoryLoading(false))
+    setSidebarOpen(false)
   }, [])
+
+  // 오늘 대화 로드 (날짜별 대화 목록도 함께)
+  useEffect(() => {
+    loadDay()
+    refreshDays()
+  }, [loadDay, refreshDays])
 
   // 스크롤 하단 고정
   useEffect(() => {
@@ -178,14 +207,16 @@ export default function AiQaPage() {
     adjustTextarea()
   }
 
-  const clearHistory = () => {
-    fetch('/api/chat/history', { method: 'DELETE' })
+  const clearHistory = async () => {
+    await fetch('/api/chat/history', { method: 'DELETE' })
     setMessages([])
+    if (todayKey) setSelectedDate(todayKey)
+    refreshDays()
   }
 
   const sendMessage = async (preset?: string) => {
     const text = (preset ?? input).trim()
-    if (!text || loading) return
+    if (!text || loading || viewingPast) return
 
     if (!preset) {
       setInput('')
@@ -261,6 +292,7 @@ export default function AiQaPage() {
       }
     } finally {
       setLoading(false)
+      refreshDays()
     }
   }
 
@@ -272,12 +304,71 @@ export default function AiQaPage() {
   }
 
   return (
-    <div className="flex flex-col bg-gray-50" style={{ height: '100dvh' }}>
+    <div className="flex bg-gray-50" style={{ height: '100dvh' }}>
+      {/* 사이드바 오버레이 (평소엔 숨김) */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/30"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* 대화 목록 사이드바 (기본 숨김, 버튼으로 토글) */}
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 w-64 md:w-72 flex-none bg-white border-r border-gray-200 flex flex-col transform transition-transform ${
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        <div className="flex-none px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+          <span className="text-xs font-semibold text-gray-600">대화 기록</span>
+          <button
+            onClick={() => setSidebarOpen(false)}
+            className="text-gray-400 hover:text-gray-600"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto py-1">
+          {days.length === 0 ? (
+            <p className="px-4 py-3 text-xs text-gray-400">대화 기록이 없습니다</p>
+          ) : (
+            days.map((d) => (
+              <button
+                key={d.date}
+                onClick={() => loadDay(d.date)}
+                className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
+                  d.date === selectedDate
+                    ? 'bg-blue-50 text-blue-700 font-medium'
+                    : 'text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                {d.label}
+              </button>
+            ))
+          )}
+        </div>
+      </aside>
+
+      {/* 메인 채팅 영역 */}
+      <div className="flex-1 flex flex-col min-w-0">
       {/* 헤더 */}
       <div className="flex-none bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
-        <div>
-          <h1 className="text-sm font-semibold text-gray-900">AI 질의응답</h1>
-          <p className="text-xs text-gray-400 mt-0.5">규정 문서 기반으로 답변합니다</p>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="text-gray-400 hover:text-gray-600 p-1 -ml-1"
+            aria-label="대화 기록 열기"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5M3.75 17.25h16.5" />
+            </svg>
+          </button>
+          <div>
+            <h1 className="text-sm font-semibold text-gray-900">AI 질의응답</h1>
+            <p className="text-xs text-gray-400 mt-0.5">규정 문서 기반으로 답변합니다</p>
+          </div>
         </div>
         <button
           onClick={clearHistory}
@@ -374,35 +465,48 @@ export default function AiQaPage() {
 
       {/* 입력창 */}
       <div className="flex-none bg-white border-t border-gray-200 px-4 py-3 pb-[max(12px,env(safe-area-inset-bottom))]">
-        <div className="flex items-end gap-2 bg-gray-50 border border-gray-200 rounded-2xl px-3 py-2">
-          <textarea
-            ref={textareaRef}
-            value={input}
-            onChange={handleInputChange}
-            onKeyDown={handleKeyDown}
-            placeholder="질문을 입력하세요... (Shift+Enter 줄바꿈)"
-            rows={1}
-            className="flex-1 bg-transparent text-sm text-gray-900 placeholder-gray-400 resize-none focus:outline-none leading-relaxed"
-            style={{ maxHeight: '120px' }}
-            disabled={loading}
-          />
-          <button
-            onClick={() => sendMessage()}
-            disabled={loading || !input.trim()}
-            className="flex-none w-8 h-8 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:bg-gray-200 flex items-center justify-center transition-colors"
-          >
-            {loading ? (
-              <svg className="animate-spin w-4 h-4 text-white" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
-            ) : (
-              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
-              </svg>
-            )}
-          </button>
-        </div>
+        {viewingPast ? (
+          <div className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3">
+            <span className="text-xs text-gray-500">지난 대화 기록입니다. 확인만 가능합니다.</span>
+            <button
+              onClick={() => loadDay()}
+              className="text-xs font-medium text-blue-600 hover:text-blue-700 flex-none"
+            >
+              오늘 대화로 이동
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-end gap-2 bg-gray-50 border border-gray-200 rounded-2xl px-3 py-2">
+            <textarea
+              ref={textareaRef}
+              value={input}
+              onChange={handleInputChange}
+              onKeyDown={handleKeyDown}
+              placeholder="질문을 입력하세요... (Shift+Enter 줄바꿈)"
+              rows={1}
+              className="flex-1 bg-transparent text-sm text-gray-900 placeholder-gray-400 resize-none focus:outline-none leading-relaxed"
+              style={{ maxHeight: '120px' }}
+              disabled={loading}
+            />
+            <button
+              onClick={() => sendMessage()}
+              disabled={loading || !input.trim()}
+              className="flex-none w-8 h-8 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:bg-gray-200 flex items-center justify-center transition-colors"
+            >
+              {loading ? (
+                <svg className="animate-spin w-4 h-4 text-white" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+              ) : (
+                <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
+                </svg>
+              )}
+            </button>
+          </div>
+        )}
+      </div>
       </div>
     </div>
   )
