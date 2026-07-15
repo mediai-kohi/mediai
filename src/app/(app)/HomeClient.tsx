@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { COLOR_BG, COLOR_LIGHT, getOrgColor } from '@/lib/orgColors'
+import { getKoreanHoliday } from '@/lib/holidays'
 
 interface CalEvent {
   id: string
@@ -111,13 +112,14 @@ export default function HomeClient() {
             const isToday = key === todayKey
             const isSun = i === 0
             const isSat = i === 6
+            const holidayName = getKoreanHoliday(key)
             return (
-              <div key={key} className="flex flex-col items-center py-2 gap-0.5">
-                <span className={`text-[10px] font-medium ${isSat ? 'text-blue-500' : isSun ? 'text-red-500' : 'text-gray-400'}`}>
+              <div key={key} className="flex flex-col items-center py-2 gap-0.5" title={holidayName}>
+                <span className={`text-[10px] font-medium ${isSat ? 'text-blue-500' : isSun || holidayName ? 'text-red-500' : 'text-gray-400'}`}>
                   {DAY_LABELS[i]}
                 </span>
                 <span className={`text-sm font-semibold w-7 h-7 flex items-center justify-center rounded-full ${
-                  isToday ? 'bg-blue-600 text-white' : isSat ? 'text-blue-600' : isSun ? 'text-red-500' : 'text-gray-800'
+                  isToday ? 'bg-blue-600 text-white' : isSat ? 'text-blue-600' : isSun || holidayName ? 'text-red-500' : 'text-gray-800'
                 }`}>
                   {d.getDate()}
                 </span>

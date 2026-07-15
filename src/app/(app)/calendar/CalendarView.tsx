@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import EventModal, { CalendarEvent } from './EventModal'
 import ImportModal from './ImportModal'
 import { FIXED_ORG_ORDER, sortOrgsByFixedOrder } from '@/lib/orgColors'
+import { getKoreanHoliday } from '@/lib/holidays'
 
 const COLOR_BG: Record<string, string> = {
   // 10색 팔레트 (색상환 균등 분포)
@@ -392,6 +393,7 @@ export default function CalendarView({ profile, organizations = [] }: Props) {
               const isToday = dateStr === todayStr
               const isSun = date.getDay() === 0
               const isSat = date.getDay() === 6
+              const holidayName = getKoreanHoliday(dateStr)
               const isSelected = selectedDate === dateStr
 
               return (
@@ -402,10 +404,14 @@ export default function CalendarView({ profile, organizations = [] }: Props) {
                 >
                   <div className="flex items-center justify-between mb-1">
                     <span className={`text-xs font-medium w-6 h-6 flex items-center justify-center rounded-full
-                      ${isToday ? 'bg-blue-600 text-white' : isSun ? 'text-red-500' : isSat ? 'text-blue-500' : 'text-gray-700'}`}>
+                      ${isToday ? 'bg-blue-600 text-white' : isSun || holidayName ? 'text-red-500' : isSat ? 'text-blue-500' : 'text-gray-700'}`}>
                       {date.getDate()}
                     </span>
                   </div>
+
+                  {holidayName && (
+                    <p className="text-[9px] text-red-500 font-medium truncate leading-tight mb-0.5">{holidayName}</p>
+                  )}
 
                   {/* 일정 바 */}
                   <div className="space-y-0.5">
@@ -500,14 +506,18 @@ export default function CalendarView({ profile, organizations = [] }: Props) {
               {weekDays.map((d, i) => {
                 const ds = toDateStr(d)
                 const isToday = ds === todayStr
+                const holidayName = getKoreanHoliday(ds)
                 return (
                   <div key={i} className="py-2 text-center">
-                    <span className={`text-xs font-medium ${i === 0 ? 'text-red-400' : i === 6 ? 'text-blue-400' : 'text-gray-500'}`}>
+                    <span className={`text-xs font-medium ${i === 0 || holidayName ? 'text-red-400' : i === 6 ? 'text-blue-400' : 'text-gray-500'}`}>
                       {DAYS_KO[i]}
                     </span>
-                    <div className={`text-sm font-bold w-7 h-7 flex items-center justify-center rounded-full mx-auto mt-0.5 ${isToday ? 'bg-blue-600 text-white' : 'text-gray-900'}`}>
+                    <div className={`text-sm font-bold w-7 h-7 flex items-center justify-center rounded-full mx-auto mt-0.5 ${isToday ? 'bg-blue-600 text-white' : holidayName ? 'text-red-500' : 'text-gray-900'}`}>
                       {d.getDate()}
                     </div>
+                    {holidayName && (
+                      <p className="text-[9px] text-red-500 font-medium truncate leading-tight px-0.5">{holidayName}</p>
+                    )}
                   </div>
                 )
               })}
