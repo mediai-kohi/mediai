@@ -9,8 +9,11 @@ const WARN_BEFORE  = 5 * 60 * 1000        // 만료 5분 전 경고
 const LS_KEY = 'eduops_last_activity'
 
 export default function SessionGuard() {
-  // 마이페이지에서 "로그인 상태 유지"를 켠 경우 idle 자동로그아웃을 적용하지 않는다
-  const [stayLoggedIn, setStayLoggedInState] = useState(false)
+  // 마이페이지에서 "로그인 상태 유지"를 켠 경우 idle 자동로그아웃을 적용하지 않는다.
+  // localStorage를 첫 렌더에서 동기적으로 읽어야 한다 — 기본값 false로 시작한 뒤
+  // effect에서 비동기로 갱신하면, 앱을 껐다 켰을 때(재마운트) 실제 값을 읽기 전에
+  // idle 체크가 먼저 실행되어 ON 상태여도 오탐 로그아웃될 수 있다.
+  const [stayLoggedIn, setStayLoggedInState] = useState(() => getStayLoggedIn())
   const [showBanner, setShowBanner] = useState(false)
   const [remaining, setRemaining] = useState(0)
 
