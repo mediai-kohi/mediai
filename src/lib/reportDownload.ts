@@ -62,7 +62,15 @@ function buildWeeklyRows(report: ReportDownloadData): (string | number)[][] {
   rows.push(['지표명', '연간목표(A)', '누적실적(B)', '달성률(B/A)', '비고'])
   KPI_LABELS.forEach((label, i) => {
     const row = wc.kpi_rows[i] ?? { target: '', actual: '' }
-    rows.push([label, fmtNum(row.target) || '—', fmtNum(row.actual) || '—', calcRate(row.target, row.actual), (row as { note?: string }).note || ''])
+    const actualSub = (row as { actual_sub?: string }).actual_sub
+    const isManpower = label === '전문인력 양성(명)'
+    const isRegional = label === '지역확산(%)'
+    const actualCell = isManpower
+      ? `수료: ${fmtNum(row.actual) || '—'} / 교육중: ${fmtNum(actualSub ?? '') || '—'}`
+      : isRegional
+      ? `비중: ${row.actual ? `${fmtNum(row.actual)}%` : '—'} / 지역참여인원: ${fmtNum(actualSub ?? '') || '—'}`
+      : fmtNum(row.actual) || '—'
+    rows.push([label, fmtNum(row.target) || '—', actualCell, calcRate(row.target, row.actual), (row as { note?: string }).note || ''])
   })
   rows.push([])
 
@@ -150,10 +158,18 @@ function buildWeeklyHtml(report: ReportDownloadData): string {
   const kpiRows = KPI_LABELS.map((label, i) => {
     const row = wc.kpi_rows[i] ?? { target: '', actual: '' }
     const note = (row as { note?: string }).note || ''
+    const actualSub = (row as { actual_sub?: string }).actual_sub ?? ''
+    const isManpower = label === '전문인력 양성(명)'
+    const isRegional = label === '지역확산(%)'
+    const actualCell = isManpower
+      ? `<div>수료: ${fmtNum(row.actual) || '—'}</div><div>교육중: ${fmtNum(actualSub) || '—'}</div>`
+      : isRegional
+      ? `<div>비중: ${row.actual ? `${fmtNum(row.actual)}%` : '—'}</div><div>지역참여인원: ${fmtNum(actualSub) || '—'}</div>`
+      : (fmtNum(row.actual) || '—')
     return `<tr>
       <td>${label}</td>
       <td class="text-center">${fmtNum(row.target) || '—'}</td>
-      <td class="text-center">${fmtNum(row.actual) || '—'}</td>
+      <td class="text-center">${actualCell}</td>
       <td class="text-center">${calcRate(row.target, row.actual)}</td>
       <td>${esc(note)}</td>
     </tr>`
