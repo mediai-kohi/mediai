@@ -430,7 +430,6 @@ function WeeklyFormBody({
   const opSelf = calcBudgetRow(value.budget.operator_self)
   const total  = calcBudgetSubtotal(value.budget.operator_gov, value.budget.operator_self)
 
-  const inputCls = 'w-full px-2 py-1.5 border border-gray-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white'
   const readonlyCls = 'w-full px-2 py-1.5 bg-gray-50 border border-gray-100 rounded text-xs text-gray-600 cursor-default'
   const numCls = 'w-full px-2 py-1.5 border border-gray-200 rounded text-xs text-center focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white tabular-nums'
   const autoNumCls = 'w-full px-2 py-1.5 bg-gray-50 text-xs text-center tabular-nums text-gray-600 cursor-default'
@@ -598,12 +597,12 @@ function WeeklyFormBody({
                       {calcRate(row.target, row.actual)}
                     </td>
                     <td className={`${TD_BASE} p-0.5`}>
-                      <input
-                        type="text"
+                      <AutoResizeTextarea
                         value={row.note ?? ''}
-                        onChange={(e) => setKpi(i, { note: e.target.value })}
+                        onChange={(v) => setKpi(i, { note: v })}
+                        rows={1}
                         placeholder="비고 입력"
-                        className={inputCls}
+                        className={textareaCls}
                       />
                     </td>
                   </tr>
