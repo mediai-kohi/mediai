@@ -18,6 +18,16 @@ export default function Setup2FAPage() {
   const [verifying, setVerifying] = useState(false)
 
   useEffect(() => {
+    // 로그인 직후 진입한 경우에만 통과시키고, 새로고침/새 창으로 직접 접근하면 로그인 화면으로 되돌린다.
+    // 미완료 상태(aal1)의 세션이 남아있으면 /auth/login이 즉시 '/'로 되돌려보내
+    // 다시 설정 페이지로 리다이렉트되는 루프가 생기므로, 세션 자체를 로그아웃시켜야 한다.
+    const fromLogin = sessionStorage.getItem('eduops_from_login')
+    sessionStorage.removeItem('eduops_from_login')
+    if (!fromLogin) {
+      createClient().auth.signOut().finally(() => router.replace('/auth/login'))
+      return
+    }
+
     const enroll = async () => {
       const supabase = createClient()
 
@@ -41,7 +51,11 @@ export default function Setup2FAPage() {
       setStep('qr')
     }
     enroll()
-  }, [])
+  }, [router])
+
+  const handleBackToLogin = () => {
+    createClient().auth.signOut().finally(() => router.replace('/auth/login'))
+  }
 
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -81,8 +95,8 @@ export default function Setup2FAPage() {
           {step === 'error' && (
             <div className="text-center py-4">
               <p className="text-sm text-red-600 mb-4">{error}</p>
-              <button onClick={() => router.replace('/')} className="text-sm text-blue-600 hover:underline">
-                홈으로 이동
+              <button onClick={handleBackToLogin} className="text-sm text-blue-600 hover:underline">
+                로그인 화면으로 돌아가기
               </button>
             </div>
           )}
@@ -147,6 +161,12 @@ export default function Setup2FAPage() {
                     {verifying ? '확인 중...' : '인증 완료'}
                   </button>
                 </form>
+              </div>
+
+              <div className="text-center">
+                <button onClick={handleBackToLogin} className="text-sm text-gray-400 hover:text-gray-600 hover:underline">
+                  로그인 화면으로 돌아가기
+                </button>
               </div>
             </div>
           )}
