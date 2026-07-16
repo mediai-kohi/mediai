@@ -28,7 +28,6 @@ export default async function ReportsPage() {
       .select('id, type, period_label, period_start, period_end, status, submitted_at, created_at, user_id')
       .eq('organization', profile.organization)
       .or(`user_id.is.null,user_id.neq.${user.id}`)
-      .neq('status', 'draft')
       .order('period_start', { ascending: false }),
   ])
 

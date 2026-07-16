@@ -72,8 +72,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   const isAdmin = profile?.role === 'super_admin'
   const isOwner = report.user_id === user.id
+  const isSameOrg = !!profile?.organization && profile.organization === report.organization
 
-  if (!isAdmin && !isOwner) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (!isAdmin && !isOwner && !isSameOrg) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const body = await request.json()
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() }

@@ -40,9 +40,10 @@ export default async function EditReportPage({
   if (!report || !profile) notFound()
 
   const isAdmin = profile.role === 'super_admin'
+  const isSameOrg = !!profile.organization && profile.organization === report.organization
 
   if (!isAdmin) {
-    if (report.user_id !== user.id) notFound()
+    if (report.user_id !== user.id && !isSameOrg) notFound()
     const allowedStatuses = isResubmit ? ['revision_requested', 'revision_approved'] : ['draft', 'submitted']
     if (!allowedStatuses.includes(report.status)) redirect(`/reports/${id}`)
   }

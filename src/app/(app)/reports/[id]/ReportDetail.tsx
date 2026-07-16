@@ -245,11 +245,13 @@ export default function ReportDetail({
   attachments,
   currentUserId,
   isAdmin,
+  canEdit,
 }: {
   report: Report
   attachments: Attachment[]
   currentUserId: string
   isAdmin: boolean
+  canEdit: boolean
 }) {
   const router = useRouter()
   const [report, setReport] = useState(initial)
@@ -419,7 +421,7 @@ export default function ReportDetail({
       )}
 
       {/* ── 사용자 액션 버튼 ── */}
-      {isOwner && (
+      {canEdit && (
         <div className="space-y-2">
           {report.status === 'draft' && (
             <>
@@ -427,10 +429,12 @@ export default function ReportDetail({
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-xl text-sm transition-colors">
                 이어서 작성
               </button>
-              <button onClick={() => setShowDeleteConfirm(true)}
-                className="w-full bg-white border border-red-200 text-red-500 font-medium py-3 rounded-xl text-sm hover:bg-red-50 transition-colors">
-                삭제
-              </button>
+              {isOwner && (
+                <button onClick={() => setShowDeleteConfirm(true)}
+                  className="w-full bg-white border border-red-200 text-red-500 font-medium py-3 rounded-xl text-sm hover:bg-red-50 transition-colors">
+                  삭제
+                </button>
+              )}
             </>
           )}
           {report.status === 'submitted' && (

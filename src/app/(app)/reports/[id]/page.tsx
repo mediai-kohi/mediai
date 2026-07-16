@@ -51,6 +51,7 @@ export default async function ReportDetailPage({ params }: { params: Promise<{ i
       attachments={attachments ?? []}
       currentUserId={user.id}
       isAdmin={isAdmin}
+      canEdit={isOwner || isSameOrg}
     />
   )
 }
