@@ -20,6 +20,15 @@ export default function Setup2FAPage() {
   useEffect(() => {
     const enroll = async () => {
       const supabase = createClient()
+
+      // 이전에 QR만 스캔하고 인증을 완료하지 않은 미인증 팩터가 남아있으면
+      // 같은 friendly name("")으로 재등록을 시도할 때 충돌이 나므로 먼저 정리한다.
+      const { data: existing } = await supabase.auth.mfa.listFactors()
+      const unverified = existing?.all?.filter((f) => f.factor_type === 'totp' && f.status === 'unverified') ?? []
+      for (const f of unverified) {
+        await supabase.auth.mfa.unenroll({ factorId: f.id })
+      }
+
       const { data, error } = await supabase.auth.mfa.enroll({ factorType: 'totp' })
       if (error || !data) {
         setError(error?.message ?? 'OTP 설정 초기화에 실패했습니다.')
