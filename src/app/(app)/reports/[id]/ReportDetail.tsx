@@ -133,7 +133,7 @@ function WeeklyDetail({ content }: { content: WeeklyContent }) {
                       ) : (fmtNum(row.actual) || '—')}
                     </td>
                     <td className={`${TDC} font-semibold text-blue-600`}>{calcRate(row.target, row.actual)}</td>
-                    <td className={TD}>{(row as { note?: string }).note || '—'}</td>
+                    <td className={`${TD} whitespace-pre-wrap align-top`}>{(row as { note?: string }).note || '—'}</td>
                   </tr>
                 )
               })}
@@ -163,7 +163,7 @@ function WeeklyDetail({ content }: { content: WeeklyContent }) {
                     <td className={`${TH} font-medium`}>{label}</td>
                     <td className={`${TD} whitespace-pre-wrap align-top`}>{row.current_week || '—'}</td>
                     <td className={`${TD} whitespace-pre-wrap align-top`}>{row.next_week || '—'}</td>
-                    <td className={TD}>{row.note || '—'}</td>
+                    <td className={`${TD} whitespace-pre-wrap align-top`}>{row.note || '—'}</td>
                   </tr>
                 )
               })}
