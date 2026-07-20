@@ -67,6 +67,36 @@ export default function SessionGuard() {
     return () => window.removeEventListener('focus', clear)
   }, [])
 
+  // 서비스워커가 오래돼 push 처리 로직이 최신 배포와 어긋나는 걸 방지:
+  // 앱을 다시 열 때마다(백그라운드 → 포그라운드 복귀 포함) 갱신 여부를 확인하고,
+  // 새 버전이 활성화되면 한 번만 새로고침해 최신 서비스워커가 즉시 적용되도록 한다.
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return
+
+    const checkForUpdate = () => {
+      navigator.serviceWorker.getRegistration().then((reg) => reg?.update())
+    }
+    checkForUpdate()
+
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') checkForUpdate()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+
+    let refreshed = false
+    const onControllerChange = () => {
+      if (refreshed) return
+      refreshed = true
+      window.location.reload()
+    }
+    navigator.serviceWorker.addEventListener('controllerchange', onControllerChange)
+
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible)
+      navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange)
+    }
+  }, [])
+
   // 배너 표시 중 1초마다 카운트다운 갱신
   useEffect(() => {
     if (!applyTimeout || !showBanner) return
