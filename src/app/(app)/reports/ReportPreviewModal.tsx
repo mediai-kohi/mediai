@@ -82,7 +82,7 @@ function WeeklyPreview({ content, periodLabel }: { content: WeeklyContent; perio
                     ) : isRegional ? (
                       <div className="text-left space-y-0.5">
                         <div>비중: {row.actual ? `${fmtNum(row.actual)}%` : '—'}</div>
-                        <div>지역참여인원: {fmtNum(actualSub ?? '') || '—'}</div>
+                        <div>지역수료인원: {fmtNum(actualSub ?? '') || '—'}</div>
                       </div>
                     ) : (fmtNum(row.actual) || '—')}
                   </td>

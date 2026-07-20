@@ -68,7 +68,7 @@ function buildWeeklyRows(report: ReportDownloadData): (string | number)[][] {
     const actualCell = isManpower
       ? `수료: ${fmtNum(row.actual) || '—'} / 교육중: ${fmtNum(actualSub ?? '') || '—'}`
       : isRegional
-      ? `비중: ${row.actual ? `${fmtNum(row.actual)}%` : '—'} / 지역참여인원: ${fmtNum(actualSub ?? '') || '—'}`
+      ? `비중: ${row.actual ? `${fmtNum(row.actual)}%` : '—'} / 지역수료인원: ${fmtNum(actualSub ?? '') || '—'}`
       : fmtNum(row.actual) || '—'
     rows.push([label, fmtNum(row.target) || '—', actualCell, calcRate(row.target, row.actual), (row as { note?: string }).note || ''])
   })
@@ -164,7 +164,7 @@ function buildWeeklyHtml(report: ReportDownloadData): string {
     const actualCell = isManpower
       ? `<div>수료: ${fmtNum(row.actual) || '—'}</div><div>교육중: ${fmtNum(actualSub) || '—'}</div>`
       : isRegional
-      ? `<div>비중: ${row.actual ? `${fmtNum(row.actual)}%` : '—'}</div><div>지역참여인원: ${fmtNum(actualSub) || '—'}</div>`
+      ? `<div>비중: ${row.actual ? `${fmtNum(row.actual)}%` : '—'}</div><div>지역수료인원: ${fmtNum(actualSub) || '—'}</div>`
       : (fmtNum(row.actual) || '—')
     return `<tr>
       <td>${label}</td>

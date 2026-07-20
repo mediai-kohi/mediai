@@ -330,7 +330,7 @@ export function buildOverviewTable(
     return { label: '달성률', isRate: true, values, total: overviewRate(targetTotal, actualTotal) }
   }
 
-  // 지역확산(%) 합계: 전체기관 지역참여인원 합계 / 수료인원 합계 (기관별 값은 각자의 계산된 비중 유지)
+  // 지역확산(%) 합계: 전체기관 지역수료인원 합계 / 수료인원 합계 (기관별 값은 각자의 계산된 비중 유지)
   const regionalTotalRate = (() => {
     const participants = sumOf(kpiVals(4, 'actual_sub'))
     const graduates = sumOf(kpiVals(1, 'actual'))
@@ -527,7 +527,7 @@ export function computeWeeklySummary(
     return { label, target: Math.round(target * 10) / 10, actual: Math.round(actual * 10) / 10, rate }
   })
 
-  // 지역기관 참여율(헤드라인 전용): 전체기관 지역참여인원 합계 / 수료인원 합계
+  // 지역기관 참여율(헤드라인 전용): 전체기관 지역수료인원 합계 / 수료인원 합계
   const regionalParticipants = activeOrgs.reduce((sum, o) => sum + parseNum(o.kpi_rows?.[4]?.actual_sub), 0)
   const regionalGraduates = activeOrgs.reduce((sum, o) => sum + parseNum(o.kpi_rows?.[1]?.actual), 0)
   const regionalParticipationRate = regionalGraduates > 0 ? (regionalParticipants / regionalGraduates) * 100 : 0

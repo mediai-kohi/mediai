@@ -405,7 +405,7 @@ function WeeklyFormBody({
   const setKpi = (i: number, patch: Partial<typeof value.kpi_rows[0]>) =>
     onChange({ ...value, kpi_rows: value.kpi_rows.map((r, idx) => idx === i ? { ...r, ...patch } : r) })
 
-  // 지역확산 비중(%) 자동계산: 지역참여인원 / 전문인력 양성 수료인원 * 100
+  // 지역확산 비중(%) 자동계산: 지역수료인원 / 전문인력 양성 수료인원 * 100
   const manpowerIdx = KPI_LABELS.indexOf('전문인력 양성(명)')
   const regionalIdx = KPI_LABELS.indexOf('지역확산(%)')
   const manpowerActual = value.kpi_rows[manpowerIdx]?.actual ?? ''
@@ -562,7 +562,7 @@ function WeeklyFormBody({
                             </span>
                           </div>
                           <div className="flex items-center gap-1">
-                            <span className="text-[10px] text-gray-400 w-14 flex-shrink-0 text-right">지역참여인원</span>
+                            <span className="text-[10px] text-gray-400 w-14 flex-shrink-0 text-right">지역수료인원</span>
                             <GhostNumInput
                               value={row.actual_sub ?? ''}
                               onChange={(v) => setKpi(i, { actual_sub: v })}

@@ -213,7 +213,7 @@ export default async function BulkPrintPage({
                           ) : isRegional ? (
                             <>
                               <div>비중: {row.actual ? `${fmtNum(row.actual)}%` : '—'}</div>
-                              <div>지역참여인원: {fmtNum(actualSub ?? '') || '—'}</div>
+                              <div>지역수료인원: {fmtNum(actualSub ?? '') || '—'}</div>
                             </>
                           ) : (
                             fmtNum(row.actual) || '—'

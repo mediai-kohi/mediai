@@ -47,7 +47,7 @@ function buildOrgSheet(ws: ExcelJS.Worksheet, org: string, periodLabel: string, 
     const actualText = isManpower
       ? `수료: ${fmtNum(row.actual) || '—'}\n교육중: ${fmtNum(actualSub ?? '') || '—'}`
       : isRegional
-      ? `비중: ${row.actual ? `${fmtNum(row.actual)}%` : '—'}\n지역참여인원: ${fmtNum(actualSub ?? '') || '—'}`
+      ? `비중: ${row.actual ? `${fmtNum(row.actual)}%` : '—'}\n지역수료인원: ${fmtNum(actualSub ?? '') || '—'}`
       : fmtNum(row.actual) || '—'
     const excelRow = ws.addRow([
       label,
