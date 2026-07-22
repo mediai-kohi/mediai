@@ -187,16 +187,6 @@ export default async function WeeklySummaryPrintPage({
           </div>
         </div>
 
-        {/* ── AI 핵심 메시지 배너 ── */}
-        {keyMessageBanner && (
-          <div className="no-break" style={{ background: 'linear-gradient(to right, #059669, #0d9488)', borderRadius: 16, padding: '16px 20px', marginBottom: 18 }}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-              <span style={{ width: 8, height: 8, borderRadius: 4, background: 'rgba(255,255,255,0.8)', flexShrink: 0, marginTop: 5, display: 'inline-block' }} />
-              <p style={{ fontSize: 12, lineHeight: 1.6, margin: 0, color: 'white' }}>{keyMessageBanner}</p>
-            </div>
-          </div>
-        )}
-
         {/* ── 2. 주요 운영기관별 핵심 동향 ── */}
         <div className="no-break" style={{ marginBottom: 18 }}>
           <div style={R}>
@@ -411,6 +401,16 @@ export default async function WeeklySummaryPrintPage({
             </div>
           )}
         </div>
+
+        {/* ── AI 핵심 메시지 배너 ── */}
+        {keyMessageBanner && (
+          <div className="no-break" style={{ background: 'linear-gradient(to right, #059669, #0d9488)', borderRadius: 16, padding: '16px 20px', marginBottom: 18 }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+              <span style={{ width: 8, height: 8, borderRadius: 4, background: 'rgba(255,255,255,0.8)', flexShrink: 0, marginTop: 5, display: 'inline-block' }} />
+              <p style={{ fontSize: 12, lineHeight: 1.6, margin: 0, color: 'white' }}>{keyMessageBanner}</p>
+            </div>
+          </div>
+        )}
 
         {/* ── 푸터 ── */}
         <div style={{ marginTop: 28, paddingTop: 12, borderTop: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#9ca3af' }}>
