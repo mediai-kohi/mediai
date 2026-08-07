@@ -51,7 +51,7 @@ export default async function AdminDashboard() {
     admin.from('profiles')
       .select('organization')
       .eq('status', 'approved')
-      .neq('role', 'super_admin'),
+      .eq('role', 'user'),
     admin.from('ai_analysis_reports')
       .select('id, period_label, result, created_at')
       .eq('start_date', startStr)

@@ -9,6 +9,9 @@ const pageTitles: Record<string, string> = {
   '/reports': '업무보고',
   '/mypage': '내 정보',
   '/admin': '관리자',
+  '/moh-report': '주간업무보고',
+  '/ministry/weekly-summary': '의료AI 교육현황',
+  '/ministry': '주간업무보고',
 }
 
 function getTitle(pathname: string): string {

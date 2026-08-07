@@ -97,6 +97,54 @@ const adminNavItem: NavItem = {
   ),
 }
 
+const reportIcon = (active: boolean) => (
+  <svg className={`w-5 h-5 ${active ? 'text-blue-600' : 'text-gray-400'}`} fill={active ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+  </svg>
+)
+
+const mypageNavItem: NavItem = {
+  href: '/mypage',
+  label: '내 정보',
+  icon: (active) => (
+    <svg className={`w-5 h-5 ${active ? 'text-blue-600' : 'text-gray-400'}`} fill={active ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
+    </svg>
+  ),
+}
+
+const mohReportNavItem: NavItem = { href: '/moh-report', label: '주간업무보고', icon: reportIcon }
+
+// 바이오헬스교육부(moh_editor): 주간업무보고 작성 화면만 접근 가능
+const mohEditorNavItems: NavItem[] = [
+  mohReportNavItem,
+  mypageNavItem,
+]
+
+const homeNavItem = baseNavItems.find((i) => i.href === '/')!
+const calendarNavItem = baseNavItems.find((i) => i.href === '/calendar')!
+const inquiriesNavItem = baseNavItems.find((i) => i.href === '/inquiries')!
+const aiQaNavItem = baseNavItems.find((i) => i.href === '/ai-qa')!
+
+// 보건복지부(ministry_viewer): 주간업무보고 + 의료AI 교육현황 열람, 홈·캘린더·문의·AI 질의는 일반사용자와 동일하게 사용 가능
+const ministryViewerNavItems: NavItem[] = [
+  homeNavItem,
+  { href: '/ministry', label: '주간업무보고', icon: reportIcon },
+  {
+    href: '/ministry/weekly-summary',
+    label: '의료AI 교육현황',
+    icon: (active) => (
+      <svg className={`w-5 h-5 ${active ? 'text-blue-600' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.5V21h18v-7.5M3 13.5 12 3l9 10.5M3 13.5h18" />
+      </svg>
+    ),
+  },
+  calendarNavItem,
+  inquiriesNavItem,
+  aiQaNavItem,
+  mypageNavItem,
+]
+
 function NavBadge({ count }: { count: number }) {
   if (count <= 0) return null
   return (
@@ -112,9 +160,11 @@ export default function Nav({ profile }: { profile: Profile | null }) {
   const [typeCounts, setTypeCounts] = useState<Record<string, number>>({})
 
   const isAdmin = profile?.role === 'super_admin'
-  const navItems = isAdmin
-    ? [...baseNavItems, adminNavItem]
-    : baseNavItems
+  const navItems =
+    profile?.role === 'moh_editor' ? mohEditorNavItems :
+    profile?.role === 'ministry_viewer' ? ministryViewerNavItems :
+    isAdmin ? [...baseNavItems, mohReportNavItem, adminNavItem] :
+    baseNavItems
 
   const apiBase = isAdmin ? '/api/admin/notifications' : '/api/notifications'
 

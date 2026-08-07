@@ -32,7 +32,7 @@ export async function GET(request: Request) {
 
   let query = admin
     .from('profiles')
-    .select('id, user_code, organization, role, status, created_at, memo')
+    .select('id, user_code, organization, role, department, status, created_at, memo')
     .order('created_at', { ascending: false })
 
   if (tab === 'pending') query = query.eq('status', 'pending')
@@ -49,6 +49,11 @@ export async function POST(request: Request) {
 
   const body = await request.json().catch(() => ({}))
   const organization: string = body.organization ?? '미지정'
+  const role: string = body.role ?? 'user'
+  if (!['user', 'moh_editor', 'ministry_viewer'].includes(role)) {
+    return NextResponse.json({ error: 'Invalid role' }, { status: 400 })
+  }
+  const department: string | null = role === 'moh_editor' ? '바이오헬스교육부' : null
 
   // 유니크 user_code 생성 (충돌 시 최대 5회 재시도)
   let user_code = ''
@@ -79,7 +84,8 @@ export async function POST(request: Request) {
     id: authUser.user.id,
     user_code,
     organization,
-    role: 'user',
+    role,
+    department,
     status: 'approved',
   })
 
@@ -93,7 +99,7 @@ export async function POST(request: Request) {
     userId: ctx.user.id,
     targetType: 'user',
     targetId: authUser.user.id,
-    metadata: { user_code, organization },
+    metadata: { user_code, organization, role, department },
   })
 
   return NextResponse.json({ user_code, temp_password }, { status: 201 })

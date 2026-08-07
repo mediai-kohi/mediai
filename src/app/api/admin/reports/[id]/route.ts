@@ -117,7 +117,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           .from('profiles')
           .select('organization')
           .eq('status', 'approved')
-          .neq('role', 'super_admin'),
+          .eq('role', 'user'),
       ])
 
       const registeredOrgs = [...new Set(

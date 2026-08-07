@@ -7,9 +7,23 @@ interface User {
   user_code: string
   organization: string
   role: string
+  department: string | null
   status: string
   created_at: string
   memo: string | null
+}
+
+const ROLE_LABEL: Record<string, string> = {
+  super_admin: '슈퍼관리자',
+  user: '일반사용자',
+  moh_editor: '바이오헬스교육부',
+  ministry_viewer: '보건복지부',
+}
+const ROLE_COLOR: Record<string, string> = {
+  super_admin: 'text-purple-700',
+  user: 'text-gray-600',
+  moh_editor: 'text-teal-700',
+  ministry_viewer: 'text-orange-700',
 }
 
 const STATUS_BADGE: Record<string, string> = {
@@ -274,6 +288,7 @@ export default function AdminUsersPage() {
   const [createLoading, setCreateLoading] = useState(false)
   const [createdUser, setCreatedUser] = useState<{ user_code: string; temp_password: string } | null>(null)
   const [selectedOrg, setSelectedOrg] = useState('')
+  const [selectedRole, setSelectedRole] = useState<'user' | 'moh_editor' | 'ministry_viewer'>('user')
 
   // 비밀번호 초기화
   const [resetResult, setResetResult] = useState<{ user_code: string; temp_password: string } | null>(null)
@@ -315,10 +330,15 @@ export default function AdminUsersPage() {
     if (confirm.action === 'delete') {
       await fetch(`/api/admin/users/${confirm.userId}`, { method: 'DELETE' })
     } else {
-      const body: Record<string, string> = {}
+      const body: Record<string, string | null> = {}
       if (confirm.action === 'approve') body.status = 'approved'
       else if (confirm.action === 'reject') body.status = 'rejected'
-      else body.role = confirm.nextValue
+      else {
+        body.role = confirm.nextValue
+        const target = users.find((u) => u.id === confirm.userId)
+        if (confirm.nextValue === 'moh_editor') body.department = '바이오헬스교육부'
+        else if (target?.role === 'moh_editor') body.department = null
+      }
 
       await fetch(`/api/admin/users/${confirm.userId}`, {
         method: 'PATCH',
@@ -334,6 +354,7 @@ export default function AdminUsersPage() {
 
   const openCreateModal = () => {
     setSelectedOrg('')
+    setSelectedRole('user')
     setCreating(true)
   }
 
@@ -342,7 +363,7 @@ export default function AdminUsersPage() {
     const res = await fetch('/api/admin/users', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ organization: selectedOrg || '미지정' }),
+      body: JSON.stringify({ organization: selectedOrg || '미지정', role: selectedRole }),
     })
     const data = await res.json()
     setCreateLoading(false)
@@ -438,9 +459,12 @@ export default function AdminUsersPage() {
                     </span>
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">
-                    <span className={`text-xs font-medium ${user.role === 'super_admin' ? 'text-purple-700' : 'text-gray-600'}`}>
-                      {user.role === 'super_admin' ? '슈퍼관리자' : '일반사용자'}
+                    <span className={`text-xs font-medium ${ROLE_COLOR[user.role] ?? 'text-gray-600'}`}>
+                      {ROLE_LABEL[user.role] ?? user.role}
                     </span>
+                    {user.department && (
+                      <span className="block text-[10px] text-gray-400 mt-0.5">{user.department}</span>
+                    )}
                   </td>
                   <MemoCell userId={user.id} initialMemo={user.memo} />
                   <td className="px-4 py-3 text-right whitespace-nowrap">
@@ -459,19 +483,24 @@ export default function AdminUsersPage() {
                       )}
                       {user.status === 'approved' && (
                         <>
-                          <button
-                            onClick={() => setConfirm({
-                              userId: user.id,
-                              action: 'role',
-                              label: user.role === 'super_admin'
-                                ? `${user.user_code}(${user.organization}) 계정을 일반사용자로 변경하시겠습니까?`
-                                : `${user.user_code}(${user.organization}) 계정을 슈퍼관리자로 변경하시겠습니까?`,
-                              nextValue: user.role === 'super_admin' ? 'user' : 'super_admin',
-                            })}
-                            className="px-2.5 py-1 border border-gray-300 text-gray-600 text-xs font-medium rounded-lg hover:bg-gray-50 transition-colors"
+                          <select
+                            value={user.role}
+                            onChange={(e) => {
+                              const next = e.target.value
+                              if (next === user.role) return
+                              setConfirm({
+                                userId: user.id,
+                                action: 'role',
+                                label: `${user.user_code}(${user.organization}) 계정의 역할을 "${ROLE_LABEL[next] ?? next}"(으)로 변경하시겠습니까?`,
+                                nextValue: next,
+                              })
+                            }}
+                            className="px-1.5 py-1 border border-gray-300 text-gray-600 text-xs font-medium rounded-lg hover:bg-gray-50 transition-colors bg-white"
                           >
-                            {user.role === 'super_admin' ? '→ 일반' : '→ 관리자'}
-                          </button>
+                            {Object.entries(ROLE_LABEL).map(([value, label]) => (
+                              <option key={value} value={value}>{label}</option>
+                            ))}
+                          </select>
                           <button
                             onClick={() => handleResetPassword(user.id, user.user_code)}
                             className="px-2.5 py-1 border border-orange-300 text-orange-600 text-xs font-medium rounded-lg hover:bg-orange-50 transition-colors"
@@ -546,6 +575,18 @@ export default function AdminUsersPage() {
                   className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               )}
+            </div>
+            <div className="mb-5">
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">역할</label>
+              <select
+                value={selectedRole}
+                onChange={e => setSelectedRole(e.target.value as 'user' | 'moh_editor' | 'ministry_viewer')}
+                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+              >
+                <option value="user">일반사용자</option>
+                <option value="moh_editor">바이오헬스교육부 담당자</option>
+                <option value="ministry_viewer">보건복지부</option>
+              </select>
             </div>
             <div className="flex gap-2">
               <button onClick={() => setCreating(false)} className="flex-1 border border-gray-200 text-gray-600 font-medium py-2.5 rounded-xl text-sm hover:bg-gray-50">취소</button>

@@ -15,7 +15,7 @@ async function requireAdmin() {
   if (!user) return null
   const admin = createAdminClient()
   const { data: p } = await admin.from('profiles').select('role').eq('id', user.id).single()
-  if (p?.role !== 'super_admin') return null
+  if (!['super_admin', 'ministry_viewer'].includes(p?.role ?? '')) return null
   return { user, admin }
 }
 

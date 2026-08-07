@@ -2,6 +2,25 @@ import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse, type NextRequest } from 'next/server'
 
+// 경로 prefix별 접근 허용 role. 매칭되는 prefix인데 role이 목록에 없으면 '/'로 리다이렉트.
+const ROUTE_ACCESS: { prefix: string; roles: string[] }[] = [
+  { prefix: '/admin', roles: ['super_admin'] },
+  { prefix: '/moh-report', roles: ['super_admin', 'moh_editor'] },
+  { prefix: '/ministry', roles: ['super_admin', 'ministry_viewer'] },
+]
+
+// moh_editor/ministry_viewer는 아래 prefix 밖으로 나갈 수 없도록 가둠(그 외 role은 제한 없음)
+// '/'는 prefix가 아니라 정확히 홈 경로일 때만 매치(그렇지 않으면 모든 경로가 '/'로 시작하므로 가둠이 무력화됨)
+const CONFINED_ALLOWED: Record<string, string[]> = {
+  moh_editor: ['/moh-report', '/moh-weekly-report', '/mypage'],
+  ministry_viewer: ['/', '/ministry', '/moh-weekly-report', '/weekly-summary', '/calendar', '/inquiries', '/ai-qa', '/mypage'],
+}
+
+const CONFINED_HOME: Record<string, string> = {
+  moh_editor: '/moh-report',
+  ministry_viewer: '/ministry',
+}
+
 export async function updateSession(request: NextRequest, extraHeaders?: Record<string, string>) {
   // Build request headers — include extra headers (e.g. nonce, CSP) so downstream
   // server components can read them via headers()
@@ -93,9 +112,16 @@ export async function updateSession(request: NextRequest, extraHeaders?: Record<
           return NextResponse.redirect(new URL('/auth/rejected', request.url))
         }
 
-        // /admin/* 경로는 super_admin만 접근 가능
-        if (pathname.startsWith('/admin') && profile.role !== 'super_admin') {
-          return NextResponse.redirect(new URL('/', request.url))
+        if (!pathname.startsWith('/api')) {
+          const matchedRoute = ROUTE_ACCESS.find((r) => pathname.startsWith(r.prefix))
+          if (matchedRoute && !matchedRoute.roles.includes(profile.role)) {
+            return NextResponse.redirect(new URL('/', request.url))
+          }
+
+          const confinedPrefixes = CONFINED_ALLOWED[profile.role]
+          if (confinedPrefixes && !confinedPrefixes.some((p) => (p === '/' ? pathname === '/' : pathname.startsWith(p)))) {
+            return NextResponse.redirect(new URL(CONFINED_HOME[profile.role] ?? '/', request.url))
+          }
         }
       }
 

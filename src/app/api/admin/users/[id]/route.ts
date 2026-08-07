@@ -57,6 +57,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const updates: Record<string, unknown> = {}
   if (body.status !== undefined) updates.status = body.status
   if (body.role !== undefined) updates.role = body.role
+  if (body.department !== undefined) updates.department = body.department
   if (body.memo !== undefined) updates.memo = body.memo
   if (body.organization !== undefined) {
     if (!body.organization?.trim()) return NextResponse.json({ error: 'organization은 비울 수 없습니다.' }, { status: 400 })

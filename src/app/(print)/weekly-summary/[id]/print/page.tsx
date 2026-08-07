@@ -54,7 +54,7 @@ export default async function WeeklySummaryPrintPage({
 
   const admin = createAdminClient()
   const { data: p } = await admin.from('profiles').select('role').eq('id', user.id).single()
-  if (p?.role !== 'super_admin') redirect('/admin')
+  if (!['super_admin', 'ministry_viewer'].includes(p?.role ?? '')) redirect('/')
 
   const { data: row, error } = await admin
     .from('weekly_summaries')

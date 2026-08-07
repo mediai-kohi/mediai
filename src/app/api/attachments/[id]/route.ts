@@ -4,10 +4,11 @@ import { NextResponse } from 'next/server'
 
 interface Attachment {
   id: string
-  entity_type: 'inquiry' | 'report'
+  entity_type: 'inquiry' | 'report' | 'moh_weekly_report'
   entity_id: string
   storage_path: string
   filename: string
+  section: string | null
 }
 
 async function checkAttachmentAccess(
@@ -22,6 +23,27 @@ async function checkAttachmentAccess(
     .single()
 
   if (profile?.role === 'super_admin') return { canRead: true, canDelete: true }
+
+  if (attachment.entity_type === 'moh_weekly_report') {
+    const { data: row } = await admin
+      .from('moh_weekly_reports')
+      .select('bio_status, ai_status')
+      .eq('id', attachment.entity_id)
+      .single()
+    if (!row) return { canRead: false, canDelete: false }
+
+    const dept: 'bio' | 'ai' = attachment.section?.startsWith('bio') ? 'bio' : 'ai'
+    const deptStatus = dept === 'bio' ? row.bio_status : row.ai_status
+
+    if (profile?.role === 'moh_editor') {
+      const owns = dept === 'bio'
+      return { canRead: owns, canDelete: owns }
+    }
+    if (profile?.role === 'ministry_viewer') {
+      return { canRead: deptStatus === 'submitted', canDelete: false }
+    }
+    return { canRead: false, canDelete: false }
+  }
 
   if (attachment.entity_type === 'inquiry') {
     const { data: inquiry } = await admin

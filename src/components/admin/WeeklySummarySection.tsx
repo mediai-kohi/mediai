@@ -295,9 +295,10 @@ function ArchiveList() {
 interface Props {
   initialData: WeeklySummaryData | null
   aiReport?: AiReportData | null
+  readOnly?: boolean
 }
 
-export default function WeeklySummarySection({ initialData, aiReport }: Props) {
+export default function WeeklySummarySection({ initialData, aiReport, readOnly = false }: Props) {
   const [data, setData] = useState<WeeklySummaryData | null>(initialData)
   const [selectedOrg, setSelectedOrg] = useState<OrgStatus | null>(null)
   const [selectedOrgBudget, setSelectedOrgBudget] = useState<WeeklySummaryData['budget']['org_executions'][number] | null>(null)
@@ -389,39 +390,41 @@ export default function WeeklySummarySection({ initialData, aiReport }: Props) {
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          {isConfirmed && (
-            <button
-              onClick={handleUnconfirm}
-              disabled={unconfirming}
-              className="px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg transition-colors disabled:opacity-50"
-            >
-              {unconfirming ? '취소 중...' : '확정 취소'}
-            </button>
-          )}
-          {!isConfirmed && data.all_approved && (
-            <button
-              onClick={() => handleConfirm(false)}
-              disabled={confirming}
-              className="px-3 py-1.5 text-xs font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors disabled:opacity-50"
-            >
-              {confirming ? '확정 중...' : '전체 확정'}
-            </button>
-          )}
-          {!isConfirmed && !data.all_approved && data.submitted_count > 0 && (
-            <button
-              onClick={() => {
-                if (confirm(`아직 ${data.org_statuses.length - data.approved_count}개 기관이 미승인 상태입니다.\n현재 기준으로 강제 확정하시겠습니까?`)) {
-                  handleConfirm(true)
-                }
-              }}
-              disabled={confirming}
-              className="px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors disabled:opacity-50"
-            >
-              현재 기준 확정
-            </button>
-          )}
-        </div>
+        {!readOnly && (
+          <div className="flex items-center gap-2 shrink-0">
+            {isConfirmed && (
+              <button
+                onClick={handleUnconfirm}
+                disabled={unconfirming}
+                className="px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg transition-colors disabled:opacity-50"
+              >
+                {unconfirming ? '취소 중...' : '확정 취소'}
+              </button>
+            )}
+            {!isConfirmed && data.all_approved && (
+              <button
+                onClick={() => handleConfirm(false)}
+                disabled={confirming}
+                className="px-3 py-1.5 text-xs font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors disabled:opacity-50"
+              >
+                {confirming ? '확정 중...' : '전체 확정'}
+              </button>
+            )}
+            {!isConfirmed && !data.all_approved && data.submitted_count > 0 && (
+              <button
+                onClick={() => {
+                  if (confirm(`아직 ${data.org_statuses.length - data.approved_count}개 기관이 미승인 상태입니다.\n현재 기준으로 강제 확정하시겠습니까?`)) {
+                    handleConfirm(true)
+                  }
+                }}
+                disabled={confirming}
+                className="px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors disabled:opacity-50"
+              >
+                현재 기준 확정
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ── 기관 제출 현황 배너 ── */}

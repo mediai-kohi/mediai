@@ -40,6 +40,8 @@ export async function GET(request: Request) {
   }
 
   const isAdmin = profile.role === 'super_admin'
+  // 보건복지부(ministry_viewer)는 관리자와 동일하게 홈 화면에서 전체 기관 일정을 조회 가능(수정/삭제 권한은 없음)
+  const canViewAllOrgEvents = isAdmin || profile.role === 'ministry_viewer'
 
   let query = admin
     .from('events')
@@ -54,7 +56,7 @@ export async function GET(request: Request) {
   if (org && org !== 'all') {
     // 선택한 기관 일정 + is_public=true 일정 항상 포함
     query = query.or(`organization.eq.${org},is_public.eq.true`)
-  } else if (isHome && !isAdmin && profile.organization) {
+  } else if (isHome && !canViewAllOrgEvents && profile.organization) {
     // 홈 화면: 본인 소속기관 일정 + 관리자가 항상 표시로 등록한 일정만
     query = query.or(`organization.eq.${profile.organization},is_public.eq.true`)
   }
