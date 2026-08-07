@@ -274,7 +274,7 @@ export default async function WeeklySummaryPrintPage({
                     </div>
                     <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: '#374151', color: 'white', flexShrink: 0, marginLeft: 6 }}>{o.badge}</span>
                   </div>
-                  {o.tagline
+                  {o.display_status !== '미제출'
                     ? <p style={{ fontSize: 11, color: '#4b5563', margin: '0 0 8px' }}>{o.tagline}</p>
                     : <p style={{ fontSize: 11, color: '#9ca3af', fontStyle: 'italic', margin: '0 0 8px' }}>보고서 미제출</p>
                   }

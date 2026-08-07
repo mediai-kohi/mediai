@@ -1,4 +1,5 @@
 import type { KpiRow, ActivityRow, WeeklyContent } from '@/app/(app)/reports/report-types'
+import { ACTIVITY_LABELS } from '@/app/(app)/reports/report-types'
 
 // ─── 상수 ────────────────────────────────────────────────────────────────────
 
@@ -452,6 +453,18 @@ export function buildOverviewTable(
   return { orgs, sections }
 }
 
+// activity_rows[0](직무교육)에 내용이 없으면 다른 활동 항목(대외협력 및 홍보/기타)에서 첫 내용을 대신 요약해 보여준다.
+// 제출은 했지만 어느 항목에도 내용이 없으면 "특이사항 없음"으로 표시(빈 문자열이면 미제출로 오인되는 것 방지).
+function summarizeActivity(rows: ActivityRow[] | undefined, field: 'current_week' | 'next_week'): string {
+  if (!rows) return ''
+  for (let i = 0; i < rows.length; i++) {
+    const text = rows[i]?.[field]?.trim()
+    if (!text) continue
+    return i === 0 ? text : `[${ACTIVITY_LABELS[i] ?? ''}] ${text}`
+  }
+  return ''
+}
+
 // ─── 핵심 집계 함수 ───────────────────────────────────────────────────────────
 
 export function computeWeeklySummary(
@@ -486,8 +499,10 @@ export function computeWeeklySummary(
       r === null ? '미제출'
       : r.status === 'approved' ? '승인'
       : '제출'
-    const tagline = content?.activity_rows?.[0]?.current_week?.slice(0, 50) ?? ''
-    const next_week = content?.activity_rows?.[0]?.next_week?.slice(0, 80) ?? ''
+    const taglineSummary = summarizeActivity(content?.activity_rows, 'current_week')
+    const tagline = r === null ? '' : taglineSummary ? taglineSummary.slice(0, 50) : '특이사항 없음'
+    const nextWeekSummary = summarizeActivity(content?.activity_rows, 'next_week')
+    const next_week = nextWeekSummary.slice(0, 80)
     return {
       org,
       report_id: r?.id ?? null,

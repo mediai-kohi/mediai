@@ -182,7 +182,7 @@ function OrgCard({ org, onClick }: { org: OrgStatus; onClick: () => void }) {
           {org.badge}
         </span>
       </div>
-      {org.tagline
+      {org.display_status !== '미제출'
         ? <p className="text-xs text-gray-600 line-clamp-2 mb-2">{org.tagline}</p>
         : <p className="text-xs text-gray-400 mb-2 italic">보고서 미제출</p>
       }
