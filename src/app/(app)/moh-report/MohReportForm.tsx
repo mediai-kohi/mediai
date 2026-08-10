@@ -17,6 +17,15 @@ interface PendingFile {
   size: number
 }
 
+interface ReportListItem {
+  id: string
+  period_label: string
+  period_start: string
+  period_end: string
+  bio: { status: string; prev_week?: string; next_week?: string }
+  ai: { status: string; prev_week?: string; next_week?: string }
+}
+
 interface SectionState {
   prevWeek: string
   nextWeek: string
@@ -54,6 +63,56 @@ function formatSize(bytes: number) {
 
 const MAX_SIZE = 10 * 1024 * 1024
 
+// GhostTextarea: 직전 제출된 내용을 흐릿하게 자동 표시(참고용). 클릭해서 펼칠 필요 없이 빈 칸일 때 바로 보임
+function GhostTextarea({
+  value,
+  onChange,
+  onFocus,
+  onKeyDown,
+  ghostText,
+  rows,
+  placeholder,
+  className,
+  textareaRef,
+}: {
+  value: string
+  onChange: (v: string) => void
+  onFocus?: (e: React.FocusEvent<HTMLTextAreaElement>) => void
+  onKeyDown?: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void
+  ghostText?: string
+  rows: number
+  placeholder: string
+  className: string
+  textareaRef: (el: HTMLTextAreaElement | null) => void
+}) {
+  const [focused, setFocused] = useState(false)
+  const showGhost = !focused && value === '' && !!ghostText?.trim()
+
+  return (
+    <div className="relative">
+      <textarea
+        ref={textareaRef}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onFocus={(e) => { setFocused(true); onFocus?.(e) }}
+        onBlur={() => setFocused(false)}
+        onKeyDown={onKeyDown}
+        rows={rows}
+        placeholder={showGhost ? '' : placeholder}
+        className={className}
+      />
+      {showGhost && (
+        <div
+          className="absolute inset-0 px-3 py-2 text-sm text-gray-900 whitespace-pre-wrap overflow-hidden pointer-events-none leading-5"
+          style={{ opacity: 0.35 }}
+        >
+          {ghostText}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function MohReportForm({ role, department }: { role: string; department: string | null }) {
   const [weeklyDate, setWeeklyDate] = useState(todayStr())
   const [rowId, setRowId] = useState<string | null>(null)
@@ -64,6 +123,9 @@ export default function MohReportForm({ role, department }: { role: string; depa
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [savingDept, setSavingDept] = useState<MohDeptKey | null>(null)
+  const [pastReports, setPastReports] = useState<ReportListItem[]>([])
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [autoFillMsg, setAutoFillMsg] = useState('')
 
   const period = calcMohWeeklyPeriod(weeklyDate)
   const editable = editableDepts(role, department)
@@ -78,11 +140,28 @@ export default function MohReportForm({ role, department }: { role: string; depa
     try {
       const listRes = await fetch('/api/moh-weekly-reports')
       const list = await listRes.json()
-      const found = Array.isArray(list) ? list.find((r: { period_start: string; id: string }) => r.period_start === periodStart) : null
+      const reportList: ReportListItem[] = Array.isArray(list) ? list : []
+      setPastReports(reportList)
+      const found = reportList.find((r) => r.period_start === periodStart)
 
       if (!found) {
         setRowId(null)
-        setSections({ bio: { ...blankSection }, ai: { ...blankSection } })
+        // 새 주차: 아직 저장된 내용이 없으므로 부서별 직전 제출본을 실제 입력값으로 채워 바로 수정할 수 있게 함
+        const editableSet = new Set(editableDepts(role, department))
+        let filled = false
+        const fillSection = (deptKey: MohDeptKey): SectionState => {
+          if (!editableSet.has(deptKey)) return { ...blankSection }
+          const prevRow = reportList.find((r) => r.period_start < periodStart && r[deptKey].status === 'submitted')
+          if (!prevRow) return { ...blankSection }
+          filled = true
+          return { ...blankSection, prevWeek: prevRow[deptKey].prev_week ?? '', nextWeek: prevRow[deptKey].next_week ?? '' }
+        }
+        const nextSections = { bio: fillSection('bio'), ai: fillSection('ai') }
+        setSections(nextSections)
+        if (filled) {
+          setAutoFillMsg('이전 제출 내용을 불러와 채웠습니다. 필요한 부분만 수정해서 사용하세요.')
+          setTimeout(() => setAutoFillMsg(''), 6000)
+        }
         return
       }
 
@@ -109,7 +188,7 @@ export default function MohReportForm({ role, department }: { role: string; depa
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [role, department])
 
   useEffect(() => {
     loadForPeriod(period.period_start)
@@ -194,6 +273,21 @@ export default function MohReportForm({ role, department }: { role: string; depa
     }))
   }
 
+  const jumpToPeriod = (periodStart: string) => {
+    setWeeklyDate(periodStart)
+    setHistoryOpen(false)
+  }
+
+  const submittedHistory = pastReports.filter(
+    (r) => (r.bio.status === 'submitted' || r.ai.status === 'submitted') && r.period_start !== period.period_start
+  )
+
+  // 부서별 직전 제출본(현재 기간보다 이전이면서 제출완료된 것 중 가장 최근) — 목록은 이미 period_start desc 정렬됨
+  const prevSubmittedByDept: Record<MohDeptKey, ReportListItem | undefined> = {
+    bio: pastReports.find((r) => r.period_start < period.period_start && r.bio.status === 'submitted'),
+    ai: pastReports.find((r) => r.period_start < period.period_start && r.ai.status === 'submitted'),
+  }
+
   const handleSave = async (dept: MohDeptKey, status: 'draft' | 'submitted') => {
     setSavingDept(dept)
     setError('')
@@ -248,8 +342,46 @@ export default function MohReportForm({ role, department }: { role: string; depa
         <p className="text-sm font-medium text-gray-800 mt-2">{period.period_label}</p>
       </div>
 
+      {submittedHistory.length > 0 && (
+        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setHistoryOpen((v) => !v)}
+            className="w-full flex items-center justify-between px-5 py-3.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            <span>제출완료 자료 목록 ({submittedHistory.length})</span>
+            <span className="text-gray-400">{historyOpen ? '▲' : '▼'}</span>
+          </button>
+          {historyOpen && (
+            <div className="border-t border-gray-100 divide-y divide-gray-100">
+              {submittedHistory.map((r) => (
+                <button
+                  key={r.id}
+                  type="button"
+                  onClick={() => jumpToPeriod(r.period_start)}
+                  className="w-full flex items-center justify-between px-5 py-3 hover:bg-gray-50 transition-colors text-left"
+                >
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">{r.period_label}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">{r.period_start} ~ {r.period_end}</p>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${r.bio.status === 'submitted' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-400'}`}>바이오헬스</span>
+                    <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${r.ai.status === 'submitted' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-400'}`}>의료AI</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-xs text-red-600">{error}</div>
+      )}
+
+      {autoFillMsg && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-xs text-blue-600">{autoFillMsg}</div>
       )}
 
       {loading ? (
@@ -259,6 +391,7 @@ export default function MohReportForm({ role, department }: { role: string; depa
           const sec = sections[d.key]
           const canEdit = editable.includes(d.key)
           const isMyDept = department === d.department
+          const prevSubmission = prevSubmittedByDept[d.key]
 
           return (
             <div key={d.key} className="bg-white border border-gray-200 rounded-xl overflow-hidden">
@@ -274,6 +407,14 @@ export default function MohReportForm({ role, department }: { role: string; depa
                 </span>
               </div>
 
+              {canEdit && prevSubmission && (
+                <p className="text-xs text-amber-600 bg-amber-50 border-b border-amber-100 px-4 py-1.5">
+                  {!rowId
+                    ? `※ ${prevSubmission.period_label} 제출 내용을 불러와 채웠습니다. 필요한 부분만 수정해서 사용하세요.`
+                    : `※ ${prevSubmission.period_label} 제출 내용을 참고용으로 표시합니다.`}
+                </p>
+              )}
+
               <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-gray-100">
                 {(['prev', 'next'] as const).map((cell) => {
                   const label = cell === 'prev' ? `이번주(${period.period_short_label}) 추진 실적` : `다음주(${period.next_period_label}) 추진 계획`
@@ -285,12 +426,13 @@ export default function MohReportForm({ role, department }: { role: string; depa
                     <div key={cell} className="p-4">
                       <p className="text-xs font-semibold text-gray-700 mb-2">{label}</p>
                       {canEdit ? (
-                        <textarea
-                          ref={(el) => { textareaRefs.current[textareaKey(d.key, cell)] = el }}
+                        <GhostTextarea
+                          textareaRef={(el) => { textareaRefs.current[textareaKey(d.key, cell)] = el }}
                           value={text}
-                          onChange={(e) => setTextValue(d.key, cell, e.target.value)}
+                          onChange={(v) => setTextValue(d.key, cell, v)}
                           onFocus={handleTextareaFocus(d.key, cell)}
                           onKeyDown={handleTextareaKeyDown(d.key, cell)}
+                          ghostText={cell === 'prev' ? prevSubmission?.[d.key].prev_week : prevSubmission?.[d.key].next_week}
                           rows={6}
                           placeholder="클릭하면 자동으로 · 표시가 생깁니다. 필요 없는 줄은 표시를 지우고 작성하세요"
                           className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 resize-y"
