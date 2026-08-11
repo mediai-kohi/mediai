@@ -18,6 +18,7 @@ const items = [
   { href: '/admin/inquiries', label: '문의', badgeKey: 'inquiries' as keyof NavBadges },
   { href: '/admin/reports', label: '리포트', badgeKey: 'reports' as keyof NavBadges },
   { href: '/admin/documents', label: '문서', badgeKey: null },
+  { href: '/admin/edu/questions', label: '만족도 문항 관리', badgeKey: null },
 ]
 
 export default function AdminNav() {

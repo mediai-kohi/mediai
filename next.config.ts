@@ -64,7 +64,8 @@ const nextConfig: NextConfig = {
           { key: 'X-XSS-Protection', value: '1; mode=block' },
           { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
-          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), interest-cohort=()' },
+          // camera=(self): 교육 모듈의 QR 출석체크 스캔 화면에서 카메라 사용 허용
+          { key: 'Permissions-Policy', value: 'camera=(self), microphone=(), geolocation=(), interest-cohort=()' },
           // CSP는 proxy.ts에서 nonce 기반으로 동적 적용 (Phase 2-6 완료)
         ],
       },
