@@ -11,6 +11,7 @@ interface OrgBudgetExecution {
   self: number
   gov_budget: number
   self_budget: number
+  budget?: number // 집행 추계 양식일 때만: 예산 총 합계
 }
 
 interface Props {
@@ -155,9 +156,9 @@ export default function OrgDetailDrawer({ org, budgetExecution, onClose }: Props
           )}
 
           {/* 예산 집행 현황 */}
-          {budgetExecution && (budgetExecution.gov_budget > 0 || budgetExecution.self_budget > 0 || budgetExecution.executed > 0) && (
+          {budgetExecution && (budgetExecution.gov_budget > 0 || budgetExecution.self_budget > 0 || budgetExecution.executed > 0 || (budgetExecution.budget ?? 0) > 0) && (
             <div>
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">예산 집행 현황</h3>
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">{budgetExecution.budget !== undefined ? '예산 집행 추계 (사업종료일까지)' : '예산 집행 현황'}</h3>
               <div className="border border-gray-200 rounded-lg overflow-hidden">
                 <div className="grid grid-cols-2 divide-x divide-gray-200">
                   <div className="bg-blue-50 p-3">
@@ -186,9 +187,15 @@ export default function OrgDetailDrawer({ org, budgetExecution, onClose }: Props
                   </div>
                 </div>
                 <div className="border-t border-gray-200 bg-gray-50 px-3 py-2.5 flex items-center justify-between">
-                  <span className="text-xs text-gray-500">합계 집행액</span>
+                  <span className="text-xs text-gray-500">{budgetExecution.budget !== undefined ? '집행 추계 합계' : '합계 집행액'}</span>
                   <span className="text-sm font-bold text-gray-900">{budgetExecution.executed.toLocaleString()}원</span>
                 </div>
+                {budgetExecution.budget !== undefined && (
+                  <div className="border-t border-gray-200 bg-gray-50 px-3 py-2.5 flex items-center justify-between">
+                    <span className="text-xs text-gray-500">예산 {budgetExecution.budget.toLocaleString()}원 · 예상 잔액</span>
+                    <span className="text-sm font-bold text-gray-900">{(budgetExecution.budget - budgetExecution.executed).toLocaleString()}원</span>
+                  </div>
+                )}
               </div>
             </div>
           )}

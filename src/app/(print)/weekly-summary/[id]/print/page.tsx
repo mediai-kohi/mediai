@@ -2,6 +2,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { redirect, notFound } from 'next/navigation'
 import type { WeeklySummaryData } from '@/lib/weeklySummary'
+import { budgetWording } from '@/lib/weeklySummary'
 import PrintTrigger from './PrintTrigger'
 import PrintButtons from './PrintButtons'
 
@@ -296,7 +297,7 @@ export default async function WeeklySummaryPrintPage({
           <div className="no-break" style={{ marginBottom: 18 }}>
             <div style={R}>
               <span style={NUM_BADGE}>3</span>
-              <p style={{ fontSize: 13, fontWeight: 700, color: '#1f2937', margin: 0 }}>예산 집행 현황</p>
+              <p style={{ fontSize: 13, fontWeight: 700, color: '#1f2937', margin: 0 }}>{budgetWording(snap.budget).title}</p>
               <span style={{ fontSize: 10, fontWeight: 600, color: '#9ca3af', letterSpacing: '0.1em' }}>BUDGET</span>
             </div>
             <div style={{ background: 'white', border: '1px solid #e5e7eb', borderRadius: 16, padding: '20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -305,11 +306,11 @@ export default async function WeeklySummaryPrintPage({
                 <p style={{ fontSize: 9, color: '#9ca3af', letterSpacing: '0.1em', margin: '0 0 4px' }}>TOTAL EXECUTED BUDGET</p>
                 <p style={{ fontSize: 22, fontWeight: 700, color: '#111827', margin: 0 }}>
                   {snap.budget.total_executed.toLocaleString()}
-                  <span style={{ fontSize: 13, fontWeight: 400, color: '#6b7280', marginLeft: 4 }}>원 집행 완료</span>
+                  <span style={{ fontSize: 13, fontWeight: 400, color: '#6b7280', marginLeft: 4 }}>{budgetWording(snap.budget).amountSuffix}</span>
                 </p>
                 <p style={{ fontSize: 11, color: '#9ca3af', marginTop: 4 }}>
                   총 사업 예산 {(snap.budget.total_budget / 100_000_000).toFixed(1)}억원 대비{' '}
-                  <span style={{ fontWeight: 600, color: '#374151' }}>{snap.budget.execution_rate}</span> 집행률 기록
+                  <span style={{ fontWeight: 600, color: '#374151' }}>{snap.budget.execution_rate}</span> {budgetWording(snap.budget).isForecast ? '집행 추계' : '집행률 기록'}
                 </p>
                 <div style={{ marginTop: 12 }}>
                   <div style={{ height: 8, background: '#f3f4f6', borderRadius: 4, overflow: 'hidden' }}>
@@ -318,7 +319,7 @@ export default async function WeeklySummaryPrintPage({
                       height: '100%', background: '#f87171', borderRadius: 4,
                     }} />
                   </div>
-                  <p style={{ fontSize: 11, color: '#ef4444', marginTop: 4 }}>누적 실집행률 {snap.budget.execution_rate}</p>
+                  <p style={{ fontSize: 11, color: '#ef4444', marginTop: 4 }}>{budgetWording(snap.budget).rateLabel} {snap.budget.execution_rate}</p>
                 </div>
               </div>
 
@@ -328,14 +329,14 @@ export default async function WeeklySummaryPrintPage({
                   <p style={{ fontSize: 9, fontWeight: 700, color: '#3b82f6', letterSpacing: '0.05em', margin: '0 0 4px' }}>국고보조금</p>
                   <p style={{ fontSize: 13, fontWeight: 700, color: '#111827', margin: 0 }}>{snap.budget.total_executed_gov.toLocaleString()}원</p>
                   <p style={{ fontSize: 10, color: '#9ca3af', marginTop: 2 }}>
-                    예산 {(snap.budget.total_budget_gov / 100_000_000).toFixed(1)}억 · 집행률 {snap.budget.execution_rate_gov}
+                    {budgetWording(snap.budget).isForecast ? '집행 추계' : <>예산 {(snap.budget.total_budget_gov / 100_000_000).toFixed(1)}억 · 집행률 {snap.budget.execution_rate_gov}</>}
                   </p>
                 </div>
                 <div style={{ background: '#ecfdf5', borderRadius: 12, padding: '10px 12px' }}>
                   <p style={{ fontSize: 9, fontWeight: 700, color: '#10b981', letterSpacing: '0.05em', margin: '0 0 4px' }}>자기부담금</p>
                   <p style={{ fontSize: 13, fontWeight: 700, color: '#111827', margin: 0 }}>{snap.budget.total_executed_self.toLocaleString()}원</p>
                   <p style={{ fontSize: 10, color: '#9ca3af', marginTop: 2 }}>
-                    예산 {(snap.budget.total_budget_self / 100_000_000).toFixed(1)}억 · 집행률 {snap.budget.execution_rate_self}
+                    {budgetWording(snap.budget).isForecast ? '집행 추계' : <>예산 {(snap.budget.total_budget_self / 100_000_000).toFixed(1)}억 · 집행률 {snap.budget.execution_rate_self}</>}
                   </p>
                 </div>
               </div>
@@ -343,7 +344,7 @@ export default async function WeeklySummaryPrintPage({
               {/* 기관별 집행 내역 */}
               {(snap.budget.org_executions?.length ?? 0) > 0 && (
                 <div>
-                  <p style={{ fontSize: 12, fontWeight: 500, color: '#4b5563', margin: '0 0 8px' }}>기관별 집행 내역</p>
+                  <p style={{ fontSize: 12, fontWeight: 500, color: '#4b5563', margin: '0 0 8px' }}>{budgetWording(snap.budget).orgTitle}</p>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {snap.budget.org_executions.map((e) => (
                       <div key={e.org} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>

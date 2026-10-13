@@ -1,5 +1,5 @@
 import type { KpiRow, ActivityRow, WeeklyContent } from '@/app/(app)/reports/report-types'
-import { ACTIVITY_LABELS } from '@/app/(app)/reports/report-types'
+import { ACTIVITY_LABELS, calcBudgetForecast } from '@/app/(app)/reports/report-types'
 
 // ─── 상수 ────────────────────────────────────────────────────────────────────
 
@@ -82,7 +82,17 @@ export interface BudgetInfo {
   execution_rate: string
   execution_rate_gov: string
   execution_rate_self: string
-  org_executions: { org: string; executed: number; gov: number; self: number; gov_budget: number; self_budget: number }[]
+  org_executions: { org: string; executed: number; gov: number; self: number; gov_budget: number; self_budget: number; budget?: number }[]
+  // 'forecast': 예산 집행 추계 양식(BUDGET_FORECAST_START 이후 주차). executed 계열 값은 실제 집행액이 아니라
+  // 사업종료일까지의 집행 추계이고, 예산은 국고/자기부담으로 나뉘지 않아 *_budget_gov/self와 해당 집행률은 비어 있다.
+  basis?: 'forecast'
+}
+
+/** 예산 영역 문구: 집행현황(실집행)과 집행 추계 양식을 구분 */
+export function budgetWording(budget: Pick<BudgetInfo, 'basis'> | null | undefined) {
+  return budget?.basis === 'forecast'
+    ? { title: '예산 집행 추계', amountSuffix: '원 집행 예상 (사업종료일까지)', rateLabel: '추계 집행률', totalLabel: '집행 추계 합계', orgTitle: '기관별 집행 추계', isForecast: true }
+    : { title: '예산 집행 현황', amountSuffix: '원 집행 완료', rateLabel: '누적 실집행률', totalLabel: '누적 집행액', orgTitle: '기관별 집행 내역', isForecast: false }
 }
 
 export interface WeeklySummaryData {
@@ -380,6 +390,34 @@ export function buildOverviewTable(
   const totalBudget = budgetTotalNums('budget')
   const totalExecuted = budgetTotalNums('executed')
 
+  // 집행 추계 양식(BUDGET_FORECAST_START 이후 주차): 기관별 총 합계 (천원 단위)
+  const isForecast = orgReports.some((o) => o.content.budget_forecast)
+  const forecastTotals = orgReports.map((o) => calcBudgetForecast(o.content.budget_forecast).total)
+  const fcBudget = forecastTotals.map((t) => t.budget / 1000)
+  const fcGov = forecastTotals.map((t) => t.gov / 1000)
+  const fcSelf = forecastTotals.map((t) => t.self / 1000)
+  const fcSubtotal = forecastTotals.map((t) => t.subtotal / 1000)
+  const fcRemaining = forecastTotals.map((t) => t.remaining / 1000)
+  const forecastGroups: OverviewGroup[] = [
+    {
+      group: '예산',
+      rows: [budgetValueRow('예산(천원)', fcBudget)],
+    },
+    {
+      group: '집행 추계',
+      rows: [
+        budgetValueRow('국고보조금(천원)', fcGov),
+        budgetValueRow('자기부담금(천원)', fcSelf),
+        budgetValueRow('소계(천원)', fcSubtotal),
+        { ...budgetRateRow(fcBudget, fcSubtotal), label: '추계 집행률' },
+      ],
+    },
+    {
+      group: '예상 잔액',
+      rows: [budgetValueRow('잔액(천원)', fcRemaining)],
+    },
+  ]
+
   const sections: OverviewSection[] = [
     {
       section: '정량지표',
@@ -420,8 +458,8 @@ export function buildOverviewTable(
       ],
     },
     {
-      section: '예산집행',
-      groups: [
+      section: isForecast ? '예산집행 추계' : '예산집행',
+      groups: isForecast ? forecastGroups : [
         {
           group: '국고보조금',
           rows: [
@@ -570,14 +608,29 @@ export function computeWeeklySummary(
   })
 
   // 예산 (주간 보고서 최신 1건에서 기관별 집계)
-  const orgExecutions: { org: string; executed: number; gov: number; self: number; gov_budget: number; self_budget: number }[] = []
+  const orgExecutions: BudgetInfo['org_executions'] = []
   let totalExecuted = 0
   let totalExecutedGov = 0
   let totalExecutedSelf = 0
   let totalBudgetGov = 0
   let totalBudgetSelf = 0
+  let totalBudgetForecast = 0
+  let isForecast = false
   for (const [org, r] of orgMap) {
     const content = r.content as WeeklyContent | null
+    if (content?.budget_forecast) {
+      // 집행 추계 양식: 비목·세목 총 합계를 기관 값으로 사용
+      const fc = calcBudgetForecast(content.budget_forecast).total
+      isForecast = true
+      totalBudgetForecast += fc.budget
+      totalExecuted += fc.subtotal
+      totalExecutedGov += fc.gov
+      totalExecutedSelf += fc.self
+      if (fc.budget > 0 || fc.subtotal > 0) {
+        orgExecutions.push({ org, executed: fc.subtotal, gov: fc.gov, self: fc.self, gov_budget: 0, self_budget: 0, budget: fc.budget })
+      }
+      continue
+    }
     const govBudget = parseNum(content?.budget?.operator_gov?.budget)
     const selfBudget = parseNum(content?.budget?.operator_self?.budget)
     const gov = parseNum(content?.budget?.operator_gov?.executed)
@@ -592,7 +645,7 @@ export function computeWeeklySummary(
       orgExecutions.push({ org, executed: sum, gov, self, gov_budget: govBudget, self_budget: selfBudget })
     }
   }
-  const totalBudget = totalBudgetGov + totalBudgetSelf
+  const totalBudget = totalBudgetGov + totalBudgetSelf + totalBudgetForecast
   const execRate = totalBudget > 0
     ? `${((totalExecuted / totalBudget) * 100).toFixed(2)}%`
     : '—'
@@ -634,6 +687,7 @@ export function computeWeeklySummary(
       execution_rate_gov: execRateGov,
       execution_rate_self: execRateSelf,
       org_executions: orgExecutions,
+      ...(isForecast ? { basis: 'forecast' as const } : {}),
     },
   }
 }

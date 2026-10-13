@@ -4,6 +4,7 @@ import { useState, useCallback } from 'react'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import type { WeeklySummaryData, OrgStatus } from '@/lib/weeklySummary'
+import { budgetWording } from '@/lib/weeklySummary'
 
 const OrgDetailDrawer = dynamic(() => import('./OrgDetailDrawer'), { ssr: false })
 
@@ -557,7 +558,7 @@ export default function WeeklySummarySection({ initialData, aiReport, readOnly =
         <div>
           <div className="flex items-center gap-2.5 mb-3">
             <span className="inline-flex items-center justify-center w-5 h-5 rounded bg-gray-800 text-white text-[10px] font-bold flex-shrink-0">3</span>
-            <p className="text-sm font-bold text-gray-800">예산 집행 현황</p>
+            <p className="text-sm font-bold text-gray-800">{budgetWording(data.budget).title}</p>
             <span className="hidden sm:inline text-[11px] font-semibold text-gray-400 tracking-wider">BUDGET</span>
           </div>
           <div className="bg-white border border-gray-200 rounded-2xl p-5 space-y-4">
@@ -566,11 +567,11 @@ export default function WeeklySummarySection({ initialData, aiReport, readOnly =
               <p className="text-[10px] text-gray-400 tracking-wide mb-1">TOTAL EXECUTED BUDGET</p>
               <p className="text-2xl font-bold text-gray-900">
                 {data.budget.total_executed.toLocaleString()}
-                <span className="text-sm font-normal text-gray-500 ml-1">원 집행 완료</span>
+                <span className="text-sm font-normal text-gray-500 ml-1">{budgetWording(data.budget).amountSuffix}</span>
               </p>
               <p className="text-xs text-gray-400 mt-1">
                 총 사업 예산 {(data.budget.total_budget / 100_000_000).toFixed(1)}억원 대비{' '}
-                <span className="font-semibold text-gray-600">{data.budget.execution_rate}</span> 집행률 기록
+                <span className="font-semibold text-gray-600">{data.budget.execution_rate}</span> {budgetWording(data.budget).isForecast ? '집행 추계' : '집행률 기록'}
               </p>
               <div className="mt-3">
                 <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
@@ -579,7 +580,7 @@ export default function WeeklySummarySection({ initialData, aiReport, readOnly =
                     style={{ width: `${Math.min(parseFloat(data.budget.execution_rate) || 0, 100)}%` }}
                   />
                 </div>
-                <p className="text-xs text-red-500 mt-1">누적 실집행률 {data.budget.execution_rate}</p>
+                <p className="text-xs text-red-500 mt-1">{budgetWording(data.budget).rateLabel} {data.budget.execution_rate}</p>
               </div>
             </div>
 
@@ -589,14 +590,14 @@ export default function WeeklySummarySection({ initialData, aiReport, readOnly =
                 <p className="text-[10px] font-semibold text-blue-500 tracking-wide mb-1">국고보조금</p>
                 <p className="text-sm font-bold text-gray-900">{data.budget.total_executed_gov.toLocaleString()}원</p>
                 <p className="text-[11px] text-gray-400 mt-0.5">
-                  예산 {(data.budget.total_budget_gov / 100_000_000).toFixed(1)}억 · 집행률 {data.budget.execution_rate_gov}
+                  {budgetWording(data.budget).isForecast ? '집행 추계' : <>예산 {(data.budget.total_budget_gov / 100_000_000).toFixed(1)}억 · 집행률 {data.budget.execution_rate_gov}</>}
                 </p>
               </div>
               <div className="bg-emerald-50 rounded-xl p-3">
                 <p className="text-[10px] font-semibold text-emerald-600 tracking-wide mb-1">자기부담금</p>
                 <p className="text-sm font-bold text-gray-900">{data.budget.total_executed_self.toLocaleString()}원</p>
                 <p className="text-[11px] text-gray-400 mt-0.5">
-                  예산 {(data.budget.total_budget_self / 100_000_000).toFixed(1)}억 · 집행률 {data.budget.execution_rate_self}
+                  {budgetWording(data.budget).isForecast ? '집행 추계' : <>예산 {(data.budget.total_budget_self / 100_000_000).toFixed(1)}억 · 집행률 {data.budget.execution_rate_self}</>}
                 </p>
               </div>
             </div>
@@ -604,7 +605,7 @@ export default function WeeklySummarySection({ initialData, aiReport, readOnly =
             {/* 기관별 집행 내역 */}
             {data.budget.org_executions && data.budget.org_executions.length > 0 && (
               <div>
-                <p className="text-xs font-medium text-gray-600 mb-2">기관별 집행 내역</p>
+                <p className="text-xs font-medium text-gray-600 mb-2">{budgetWording(data.budget).orgTitle}</p>
                 <div className="space-y-2">
                   {data.budget.org_executions.filter(e => e.executed > 0).map((e) => (
                     <div key={e.org} className="flex items-start justify-between gap-2">

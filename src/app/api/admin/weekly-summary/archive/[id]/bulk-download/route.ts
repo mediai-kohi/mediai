@@ -6,6 +6,7 @@ import { buildOverviewTable, sortByOverviewOrgOrder, type WeeklySummaryData } fr
 import {
   KPI_LABELS, ACTIVITY_LABELS,
   calcBudgetRow, calcBudgetSubtotal, fmtNum, calcRate,
+  budgetLabels, forecastSheetRows,
 } from '@/app/(app)/reports/report-types'
 import type { WeeklyContent } from '@/app/(app)/reports/report-types'
 
@@ -72,32 +73,37 @@ function buildOrgSheet(ws: ExcelJS.Worksheet, org: string, periodLabel: string, 
   })
   ws.addRow([])
 
-  ws.addRow(['4. 예산 집행현황'])
-  ws.addRow(['구분', '예산', '집행액', '집행잔액', '집행률'])
-  ws.addRow([
-    '국고보조금',
-    fmtNum(safeBudget.operator_gov.budget) || '—',
-    fmtNum(safeBudget.operator_gov.executed) || '—',
-    opGov.budget ? opGov.remaining.toLocaleString('ko-KR') : '—',
-    opGov.rate,
-  ])
-  ws.addRow([
-    '자기부담금',
-    fmtNum(safeBudget.operator_self.budget) || '—',
-    fmtNum(safeBudget.operator_self.executed) || '—',
-    opSelf.budget ? opSelf.remaining.toLocaleString('ko-KR') : '—',
-    opSelf.rate,
-  ])
-  ws.addRow([
-    '합계',
-    total.budget ? total.budget.toLocaleString('ko-KR') : '—',
-    total.executed ? total.executed.toLocaleString('ko-KR') : '—',
-    total.budget ? total.remaining.toLocaleString('ko-KR') : '—',
-    total.rate,
-  ])
+  const labels = budgetLabels(content)
+  ws.addRow([`4. ${labels.section}`])
+  if (content.budget_forecast) {
+    for (const row of forecastSheetRows(content.budget_forecast)) ws.addRow(row)
+  } else {
+    ws.addRow(['구분', '예산', '집행액', '집행잔액', '집행률'])
+    ws.addRow([
+      '국고보조금',
+      fmtNum(safeBudget.operator_gov.budget) || '—',
+      fmtNum(safeBudget.operator_gov.executed) || '—',
+      opGov.budget ? opGov.remaining.toLocaleString('ko-KR') : '—',
+      opGov.rate,
+    ])
+    ws.addRow([
+      '자기부담금',
+      fmtNum(safeBudget.operator_self.budget) || '—',
+      fmtNum(safeBudget.operator_self.executed) || '—',
+      opSelf.budget ? opSelf.remaining.toLocaleString('ko-KR') : '—',
+      opSelf.rate,
+    ])
+    ws.addRow([
+      '합계',
+      total.budget ? total.budget.toLocaleString('ko-KR') : '—',
+      total.executed ? total.executed.toLocaleString('ko-KR') : '—',
+      total.budget ? total.remaining.toLocaleString('ko-KR') : '—',
+      total.rate,
+    ])
+  }
   if (content.budget_plan) {
     ws.addRow([])
-    const planRow = ws.addRow(['향후예산 활용계획', content.budget_plan])
+    const planRow = ws.addRow([labels.plan, content.budget_plan])
     planRow.getCell(2).alignment = { wrapText: true, vertical: 'top' }
   }
 }
@@ -197,7 +203,7 @@ export async function GET(
     // Excel 시트명: 최대 31자, 특수문자 제거
     const sheetName = o.org.replace(/[/\\?*[\]:]/g, '').slice(0, 31)
     const ws = wb.addWorksheet(sheetName)
-    ;[22, 28, 28, 18, 14].forEach((w, i) => { ws.getColumn(i + 1).width = w })
+    ;[22, 28, 28, 18, 18, 18, 18].forEach((w, i) => { ws.getColumn(i + 1).width = w })
     buildOrgSheet(ws, o.org, periodLabel, content)
   }
 

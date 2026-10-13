@@ -5,9 +5,10 @@ import { useRouter } from 'next/navigation'
 import {
   WeeklyContent,
   KPI_LABELS, ACTIVITY_LABELS,
-  calcRate, calcBudgetRow, calcBudgetSubtotal, fmtNum,
+  calcRate, calcBudgetRow, calcBudgetSubtotal, fmtNum, budgetLabels,
   ReportStatus,
 } from '../report-types'
+import BudgetForecastTable from '../BudgetForecastTable'
 import { downloadReportExcel, printReportPdf } from '@/lib/reportDownload'
 
 const STATUS_CONFIG: Record<string, { label: string; cls: string }> = {
@@ -174,8 +175,11 @@ function WeeklyDetail({ content }: { content: WeeklyContent }) {
 
       {/* 예산 집행현황 */}
       <section>
-        <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">예산 집행현황</h3>
+        <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">{budgetLabels(content).section}</h3>
         <div className="overflow-x-auto rounded-lg border border-gray-200 mb-3">
+          {content.budget_forecast ? (
+            <BudgetForecastTable forecast={content.budget_forecast} th={TH} td={TD} />
+          ) : (
           <table className="w-full border-collapse min-w-[360px]">
             <thead>
               <tr>
@@ -210,10 +214,11 @@ function WeeklyDetail({ content }: { content: WeeklyContent }) {
               </tr>
             </tbody>
           </table>
+          )}
         </div>
         {budget_plan && (
           <div>
-            <p className="text-xs font-medium text-gray-500 mb-1">향후예산 활용계획</p>
+            <p className="text-xs font-medium text-gray-500 mb-1">{budgetLabels(content).plan}</p>
             <p className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed bg-gray-50 rounded-xl px-4 py-3">{budget_plan}</p>
           </div>
         )}

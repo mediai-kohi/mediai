@@ -20,8 +20,12 @@ import {
   ReportStatus,
   WeeklyContent,
   MonthlyBudget,
+  BudgetForecastItem,
+  BalancePlan,
+  BALANCE_METHODS,
   KPI_LABELS, ACTIVITY_LABELS,
   calcRate, calcBudgetRow, calcBudgetSubtotal, calcRegionalShare, fmtNum,
+  calcBudgetForecast, calcForecastItem, defaultBudgetForecast, emptyForecastItem, normalizeBudgetForecast, usesBudgetForecast, fmtAmount, fmtShare,
   defaultWeekly,
 } from './report-types'
 
@@ -342,6 +346,34 @@ const KPI_HINTS: Record<string, string> = {
   '지역확산(%)': '수도권 이외 지역의료기관 참여인원 비중',
 }
 
+/** 집행 추계에 세목명이나 금액이 하나라도 입력됐는지 */
+function hasForecastInput(forecast: WeeklyContent['budget_forecast']): boolean {
+  return (forecast ?? []).some((c) => c.items.some((i) => i.name.trim() || i.budget || i.gov || i.self))
+}
+
+/** 저장용 내용: 주차에 맞는 예산 양식만 남긴다 */
+function contentForPeriod(content: WeeklyContent, periodStart: string): WeeklyContent {
+  if (!usesBudgetForecast(periodStart)) {
+    const { budget_forecast: _unused, ...rest } = content
+    void _unused
+    return rest
+  }
+  return {
+    ...content,
+    budget: defaultWeekly(content.org_info.operator).budget,
+    budget_forecast: normalizeBudgetForecast(content.budget_forecast).map((c) => ({
+      ...c,
+      items: c.items
+        .filter((i) => i.name.trim() || i.budget || i.gov || i.self)
+        .map(({ balance_plan, ...item }) => {
+          const hasPlan = !!balance_plan && (!!balance_plan.method || !!balance_plan.detail.trim())
+          return calcForecastItem(item).remaining > 0 && hasPlan ? { ...item, balance_plan } : item
+        }),
+    })),
+    budget_plan: '',
+  }
+}
+
 // ─────────────────────────────────────────────────
 // WeeklyFormBody
 // ─────────────────────────────────────────────────
@@ -392,7 +424,12 @@ function WeeklyFormBody({
           executed: value.budget.operator_self.executed || prevApprovedBudget?.operator_self?.executed || '',
         },
       },
-      budget_plan: value.budget_plan || prev.budget_plan || '',
+      // 집행 추계는 세목 구성과 금액을 통째로 이어받는다(아직 아무것도 입력하지 않았을 때만)
+      ...(prev.budget_forecast && !hasForecastInput(value.budget_forecast)
+        ? { budget_forecast: normalizeBudgetForecast(prev.budget_forecast) }
+        : {}),
+      // 활용계획은 같은 양식끼리만 이어받는다(향후예산 활용계획 ↔ 잔액 활용계획은 내용이 다름)
+      budget_plan: value.budget_plan || (!!prev.budget_forecast === usesBudgetForecast(calcWeeklyPeriod(weeklyDate).period_start) ? prev.budget_plan : '') || '',
     })
     setAutoFillMsg('이전 주간보고 내용을 불러왔습니다.')
     setTimeout(() => setAutoFillMsg(''), 6000)
@@ -429,6 +466,24 @@ function WeeklyFormBody({
   const opGov  = calcBudgetRow(value.budget.operator_gov)
   const opSelf = calcBudgetRow(value.budget.operator_self)
   const total  = calcBudgetSubtotal(value.budget.operator_gov, value.budget.operator_self)
+
+  // 예산 집행 추계 (BUDGET_FORECAST_START 이후 주차)
+  const useForecast = usesBudgetForecast(toDateStr(monday))
+  const forecast = value.budget_forecast ? normalizeBudgetForecast(value.budget_forecast) : defaultBudgetForecast()
+  const forecastCalc = calcBudgetForecast(forecast)
+  const setForecastItems = (ci: number, items: BudgetForecastItem[]) =>
+    onChange({ ...value, budget_forecast: forecast.map((c, idx) => idx === ci ? { ...c, items } : c) })
+  const setForecastItem = (ci: number, ii: number, patch: Partial<BudgetForecastItem>) =>
+    setForecastItems(ci, forecast[ci].items.map((item, idx) => idx === ii ? { ...item, ...patch } : item))
+
+  const setBalancePlan = (ci: number, ii: number, patch: Partial<BalancePlan>) =>
+    setForecastItem(ci, ii, { balance_plan: { method: '', detail: '', ...forecast[ci].items[ii].balance_plan, ...patch } })
+  // 예상 잔액이 생긴 세목 (처리계획 작성 대상)
+  const balanceItems = forecast.flatMap((cat, ci) =>
+    cat.items
+      .map((item, ii) => ({ category: cat.category, ci, ii, item, remaining: forecastCalc.categories[ci].items[ii].remaining }))
+      .filter((b) => b.remaining > 0)
+  )
 
   const readonlyCls = 'w-full px-2 py-1.5 bg-gray-50 border border-gray-100 rounded text-xs text-gray-600 cursor-default'
   const numCls = 'w-full px-2 py-1.5 border border-gray-200 rounded text-xs text-center focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white tabular-nums'
@@ -674,7 +729,181 @@ function WeeklyFormBody({
         </div>
       </SectionCard>
 
-      {/* ── 4. 예산 집행현황 ── */}
+      {/* ── 4. 예산 집행 추계 (BUDGET_FORECAST_START 이후 주차) ── */}
+      {useForecast && (
+      <SectionCard title="4. 예산 집행 추계 (사업종료일까지)">
+        <p className="text-[11px] text-gray-400 mb-2">비목별로 세목을 추가해 예산과 사업종료일까지의 집행 추계를 입력하세요. 소계·예상 잔액·합계는 자동 계산됩니다. (단위: 원)</p>
+        <div className="overflow-x-auto mb-3">
+          <table className="w-full border-collapse table-fixed min-w-[760px]">
+            <thead>
+              <tr>
+                <th rowSpan={2} className={`${TH_BASE} w-20 text-center`}>비목</th>
+                <th rowSpan={2} className={`${TH_BASE} text-center`}>세목</th>
+                <th rowSpan={2} className={`${TH_BASE} w-28 text-center`}>예산</th>
+                <th colSpan={3} className={`${TH_BASE} text-center`}>집행 추계</th>
+                <th rowSpan={2} className={`${TH_BASE} w-28 text-center`}>예상 잔액</th>
+                <th rowSpan={2} className={`${TH_BASE} w-10 text-center`}></th>
+              </tr>
+              <tr>
+                <th className={`${TH_BASE} w-28 text-center`}>국고보조금</th>
+                <th className={`${TH_BASE} w-28 text-center`}>자기부담금</th>
+                <th className={`${TH_BASE} w-28 text-center`}>소계</th>
+              </tr>
+            </thead>
+            {forecast.map((cat, ci) => {
+              const catCalc = forecastCalc.categories[ci]
+              return (
+                <tbody key={cat.category}>
+                  {cat.items.map((item, ii) => {
+                    const amounts = catCalc.items[ii]
+                    return (
+                      <tr key={ii}>
+                        {ii === 0 && (
+                          <td rowSpan={cat.items.length + 1} className={`${TH_BASE} text-center align-middle`}>{cat.category}</td>
+                        )}
+                        <td className={`${TD_BASE} p-0.5`}>
+                          <input
+                            type="text"
+                            value={item.name}
+                            onChange={(e) => setForecastItem(ci, ii, { name: e.target.value })}
+                            placeholder="세목 입력"
+                            maxLength={50}
+                            className="w-full px-2 py-1.5 border border-gray-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
+                          />
+                        </td>
+                        <td className={`${TD_BASE} p-0.5`}>
+                          <NumInput value={item.budget} onChange={(v) => setForecastItem(ci, ii, { budget: v })} className={numCls} />
+                        </td>
+                        <td className={`${TD_BASE} p-0.5`}>
+                          <NumInput value={item.gov} onChange={(v) => setForecastItem(ci, ii, { gov: v })} className={numCls} />
+                        </td>
+                        <td className={`${TD_BASE} p-0.5`}>
+                          <NumInput value={item.self} onChange={(v) => setForecastItem(ci, ii, { self: v })} className={numCls} />
+                        </td>
+                        <td className={`${TD_BASE} p-0.5`}>
+                          <div className={autoNumCls}>{fmtAmount(amounts.subtotal)}</div>
+                        </td>
+                        <td className={`${TD_BASE} p-0.5`}>
+                          <div className={`${autoNumCls} ${amounts.remaining < 0 ? 'text-red-600' : ''}`}>
+                            {amounts.budget || amounts.subtotal ? amounts.remaining.toLocaleString('ko-KR') : '—'}
+                          </div>
+                        </td>
+                        <td className={`${TD_BASE} p-0.5 text-center`}>
+                          <button
+                            type="button"
+                            onClick={() => setForecastItems(ci, cat.items.filter((_, idx) => idx !== ii))}
+                            aria-label={`${cat.category} 세목 삭제`}
+                            className="w-6 h-6 rounded text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                          >
+                            ×
+                          </button>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                  <tr>
+                    {cat.items.length === 0 && (
+                      <td className={`${TH_BASE} text-center align-middle`}>{cat.category}</td>
+                    )}
+                    <td className={`${TD_BASE} bg-gray-50`}>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-semibold text-gray-700">합계</span>
+                        <button
+                          type="button"
+                          onClick={() => setForecastItems(ci, [...cat.items, emptyForecastItem()])}
+                          className="px-2 py-1 text-[11px] font-medium text-blue-600 bg-white border border-blue-200 rounded hover:bg-blue-50 transition-colors whitespace-nowrap"
+                        >
+                          + 세목 추가
+                        </button>
+                      </div>
+                    </td>
+                    <td className={`${TD_BASE} bg-gray-50 text-center tabular-nums font-semibold`}>{fmtAmount(catCalc.total.budget)}</td>
+                    <td className={`${TD_BASE} bg-gray-50 text-center tabular-nums font-semibold`}>{fmtAmount(catCalc.total.gov)}</td>
+                    <td className={`${TD_BASE} bg-gray-50 text-center tabular-nums font-semibold`}>{fmtAmount(catCalc.total.self)}</td>
+                    <td className={`${TD_BASE} bg-gray-50 text-center tabular-nums font-semibold`}>{fmtAmount(catCalc.total.subtotal)}</td>
+                    <td className={`${TD_BASE} bg-gray-50 text-center tabular-nums font-semibold ${catCalc.total.remaining < 0 ? 'text-red-600' : ''}`}>
+                      {catCalc.total.budget || catCalc.total.subtotal ? catCalc.total.remaining.toLocaleString('ko-KR') : '—'}
+                    </td>
+                    <td className={`${TD_BASE} bg-gray-50`}></td>
+                  </tr>
+                </tbody>
+              )
+            })}
+            <tfoot>
+              <tr className="bg-blue-50">
+                <td colSpan={2} className={`${TH_BASE} text-center font-bold text-blue-700`}>총 합계</td>
+                <td className={`${TD_BASE} bg-blue-50 text-center tabular-nums font-semibold text-blue-700`}>{fmtAmount(forecastCalc.total.budget)}</td>
+                <td className={`${TD_BASE} bg-blue-50 text-center tabular-nums font-semibold text-blue-700`}>{fmtAmount(forecastCalc.total.gov)}{fmtShare(forecastCalc.total.gov, forecastCalc.total.subtotal)}</td>
+                <td className={`${TD_BASE} bg-blue-50 text-center tabular-nums font-semibold text-blue-700`}>{fmtAmount(forecastCalc.total.self)}{fmtShare(forecastCalc.total.self, forecastCalc.total.subtotal)}</td>
+                <td className={`${TD_BASE} bg-blue-50 text-center tabular-nums font-semibold text-blue-700`}>{fmtAmount(forecastCalc.total.subtotal)}</td>
+                <td className={`${TD_BASE} bg-blue-50 text-center tabular-nums font-semibold ${forecastCalc.total.remaining < 0 ? 'text-red-600' : 'text-blue-700'}`}>
+                  {forecastCalc.total.budget || forecastCalc.total.subtotal ? forecastCalc.total.remaining.toLocaleString('ko-KR') : '—'}
+                </td>
+                <td className={`${TD_BASE} bg-blue-50`}></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+
+        {/* 예상 잔액 처리계획: 예상 잔액이 생긴 세목만 */}
+        {balanceItems.length > 0 && (
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">예상 잔액 처리계획</label>
+            <p className="text-[11px] text-gray-400 mb-2">예상 잔액이 있는 세목별로 처리 방법을 선택하고 세부내용을 입력하세요.</p>
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse min-w-[760px]">
+                <thead>
+                  <tr>
+                    <th className={`${TH_BASE} text-center whitespace-nowrap`}>비목</th>
+                    <th className={`${TH_BASE} text-center whitespace-nowrap`}>세목</th>
+                    <th className={`${TH_BASE} text-center whitespace-nowrap`}>예상 잔액</th>
+                    <th className={`${TH_BASE} text-center whitespace-nowrap`}>처리 방법</th>
+                    <th className={`${TH_BASE} w-full min-w-[240px] text-center`}>세부내용</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {balanceItems.map(({ category, ci, ii, item, remaining }) => (
+                    <tr key={`${ci}-${ii}`}>
+                      <td className={`${TH_BASE} text-center whitespace-nowrap`}>{category}</td>
+                      <td className={`${TD_BASE} whitespace-nowrap`}>{item.name || <span className="text-gray-400">(세목명 미입력)</span>}</td>
+                      <td className={`${TD_BASE} text-center tabular-nums whitespace-nowrap`}>{remaining.toLocaleString('ko-KR')}</td>
+                      <td className={TD_BASE}>
+                        <div className="flex items-center justify-center gap-3">
+                          {BALANCE_METHODS.map((method) => (
+                            <label key={method} className="inline-flex items-center gap-1 cursor-pointer whitespace-nowrap">
+                              <input
+                                type="radio"
+                                name={`balance-method-${ci}-${ii}`}
+                                checked={item.balance_plan?.method === method}
+                                onChange={() => setBalancePlan(ci, ii, { method })}
+                                className="accent-blue-600"
+                              />
+                              {method}
+                            </label>
+                          ))}
+                        </div>
+                      </td>
+                      <td className={`${TD_BASE} p-0.5`}>
+                        <AutoResizeTextarea
+                          value={item.balance_plan?.detail ?? ''}
+                          onChange={(v) => setBalancePlan(ci, ii, { detail: v })}
+                          rows={1}
+                          placeholder="세부내용을 입력하세요 (예: 전용 대상 세목·금액, 반납 사유 등)"
+                          className={textareaCls}
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </SectionCard>
+      )}
+
+      {/* ── 4. 예산 집행현황 (BUDGET_FORECAST_START 이전 주차) ── */}
+      {!useForecast && (
       <SectionCard title="4. 예산 집행현황">
         <div className="overflow-x-auto mb-3">
           <table className="w-full border-collapse table-fixed min-w-[480px]">
@@ -742,6 +971,7 @@ function WeeklyFormBody({
           />
         </div>
       </SectionCard>
+      )}
     </div>
   )
 }
@@ -949,7 +1179,7 @@ export default function ReportForm({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          type: 'weekly', period_label, period_start, period_end, content: weekly, status: saveStatus,
+          type: 'weekly', period_label, period_start, period_end, content: contentForPeriod(weekly, period_start), status: saveStatus,
           attachments: pendingFiles,
         }),
       })
@@ -958,7 +1188,7 @@ export default function ReportForm({
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          content: weekly, status: saveStatus,
+          content: contentForPeriod(weekly, period_start), status: saveStatus,
           addAttachments: pendingFiles,
           removeAttachmentIds: removedIds,
         }),
@@ -1181,7 +1411,7 @@ export default function ReportForm({
       {showPreview && (
         <ReportPreviewModal
           periodLabel={period_label}
-          content={weekly}
+          content={contentForPeriod(weekly, period_start)}
           onClose={() => setShowPreview(false)}
         />
       )}

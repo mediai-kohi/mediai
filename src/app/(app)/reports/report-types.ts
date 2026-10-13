@@ -47,13 +47,43 @@ export interface MonthlyBudget {
   operator_self: BudgetEntry // 자기부담금
 }
 
+// ── 예산 집행 추계 (2026년 10월 3주차부터 적용되는 양식) ──
+
+/** 이 날짜(월요일) 이후 주차의 리포트는 예산 집행현황 대신 비목별 집행 추계를 작성한다 */
+export const BUDGET_FORECAST_START = '2026-10-12'
+
+export const BUDGET_CATEGORIES = ['인건비', '운영비', '여비', '업무추진비'] as const
+
+export const BALANCE_METHODS = ['전용', '반납', '기타'] as const
+
+// 예상 잔액 처리계획 (세목에 예상 잔액이 생겼을 때 작성)
+export interface BalancePlan {
+  method: string // 처리 방법 (BALANCE_METHODS), 미선택은 ''
+  detail: string // 세부내용
+}
+
+// 세목 1행
+export interface BudgetForecastItem {
+  name: string   // 세목명 (직접 입력)
+  budget: string // 예산
+  gov: string    // 집행 추계 — 국고보조금
+  self: string   // 집행 추계 — 자기부담금
+  balance_plan?: BalancePlan // 예상 잔액 처리계획
+}
+
+export interface BudgetForecastCategory {
+  category: string             // 비목 (BUDGET_CATEGORIES)
+  items: BudgetForecastItem[]  // 세목
+}
+
 export interface WeeklyContent {
   version: 2
   org_info: OrgInfo
   kpi_rows: KpiRow[]           // KPI_LABELS 순서와 동일, 길이 6
   activity_rows: ActivityRow[] // ACTIVITY_LABELS 순서와 동일, 길이 3
-  budget: MonthlyBudget        // 예산 집행현황
-  budget_plan: string          // 향후예산 활용계획
+  budget: MonthlyBudget        // 예산 집행현황 (BUDGET_FORECAST_START 이전 주차)
+  budget_forecast?: BudgetForecastCategory[] // 사업종료일까지 예산 집행 추계 (BUDGET_FORECAST_START 이후 주차), BUDGET_CATEGORIES 순서
+  budget_plan: string          // 향후예산 활용계획 (집행 추계 양식에서는 쓰지 않고 세목별 예상 잔액 처리계획으로 대체)
 }
 
 // ── 유틸 함수 ──
@@ -98,6 +128,148 @@ export function calcBudgetSubtotal(a: BudgetEntry, b: BudgetEntry) {
   const remaining = ab - ae
   const rate = ab > 0 ? `${((ae / ab) * 100).toFixed(1)}%` : '—'
   return { budget: ab, executed: ae, remaining, rate }
+}
+
+/** 해당 주차(period_start)가 예산 집행 추계 양식 적용 대상인지 */
+export function usesBudgetForecast(periodStart: string): boolean {
+  return periodStart >= BUDGET_FORECAST_START
+}
+
+export const emptyForecastItem = (): BudgetForecastItem => ({ name: '', budget: '', gov: '', self: '' })
+
+/** 비목 4개, 비목별 빈 세목 1행 */
+export function defaultBudgetForecast(): BudgetForecastCategory[] {
+  return BUDGET_CATEGORIES.map((category) => ({ category, items: [emptyForecastItem()] }))
+}
+
+/** 저장된 값을 BUDGET_CATEGORIES 순서로 정렬하고 빠진 비목은 빈 값으로 채운다 */
+export function normalizeBudgetForecast(forecast: BudgetForecastCategory[] | undefined | null): BudgetForecastCategory[] {
+  return BUDGET_CATEGORIES.map((category) => ({
+    category,
+    items: forecast?.find((c) => c.category === category)?.items ?? [],
+  }))
+}
+
+export interface ForecastAmounts {
+  budget: number    // 예산
+  gov: number       // 집행 추계 — 국고보조금
+  self: number      // 집행 추계 — 자기부담금
+  subtotal: number  // 집행 추계 — 소계
+  remaining: number // 예상 잔액 = 예산 - 소계
+}
+
+const sumAmounts = (rows: ForecastAmounts[]): ForecastAmounts =>
+  rows.reduce(
+    (acc, r) => ({
+      budget: acc.budget + r.budget,
+      gov: acc.gov + r.gov,
+      self: acc.self + r.self,
+      subtotal: acc.subtotal + r.subtotal,
+      remaining: acc.remaining + r.remaining,
+    }),
+    { budget: 0, gov: 0, self: 0, subtotal: 0, remaining: 0 }
+  )
+
+export function calcForecastItem(item: BudgetForecastItem): ForecastAmounts {
+  const budget = parseFloat(item.budget) || 0
+  const gov = parseFloat(item.gov) || 0
+  const self = parseFloat(item.self) || 0
+  const subtotal = gov + self
+  return { budget, gov, self, subtotal, remaining: budget - subtotal }
+}
+
+/** 세목별 금액, 비목별 합계, 총 합계 */
+export function calcBudgetForecast(forecast: BudgetForecastCategory[] | undefined | null) {
+  const categories = normalizeBudgetForecast(forecast).map((c) => {
+    const items = c.items.map((item) => ({ name: item.name, ...calcForecastItem(item) }))
+    return { category: c.category, items, total: sumAmounts(items) }
+  })
+  return { categories, total: sumAmounts(categories.map((c) => c.total)) }
+}
+
+export type ForecastRow =
+  | ({ kind: 'item'; category: string; categoryRowSpan: number; name: string } & ForecastAmounts)
+  | ({ kind: 'category_total'; category: string; showCategory: boolean } & ForecastAmounts)
+  | ({ kind: 'total' } & ForecastAmounts)
+
+/**
+ * 표 출력용 행 목록: 비목마다 [세목…, 비목 합계], 마지막에 총 합계.
+ * 이름과 금액이 모두 빈 세목은 제외한다. 비목 칸은 세목 행과 합계 행을 함께 덮는다:
+ * categoryRowSpan은 비목의 첫 세목 행에만 (세목 수 + 1)이 들어가고 나머지는 0, 세목이 없으면 합계 행의 showCategory가 true.
+ */
+export function buildForecastRows(forecast: BudgetForecastCategory[] | undefined | null): ForecastRow[] {
+  const { categories, total } = calcBudgetForecast(forecast)
+  const rows: ForecastRow[] = []
+  for (const c of categories) {
+    const items = c.items.filter((i) => i.name.trim() || i.budget || i.gov || i.self)
+    items.forEach((item, idx) => {
+      rows.push({ kind: 'item', category: c.category, categoryRowSpan: idx === 0 ? items.length + 1 : 0, ...item })
+    })
+    rows.push({ kind: 'category_total', category: c.category, showCategory: items.length === 0, ...c.total })
+  }
+  rows.push({ kind: 'total', ...total })
+  return rows
+}
+
+/** 총 합계 행의 재원 비율 표기: 집행 추계 소계 대비 비율, 예) ' (83.333%)'. 소계가 0이면 빈 문자열 */
+export function fmtShare(part: number, subtotal: number): string {
+  return subtotal > 0 ? ` (${((part / subtotal) * 100).toFixed(3)}%)` : ''
+}
+
+/** 금액 표기 (0은 '—') */
+export function fmtAmount(n: number): string {
+  return n ? n.toLocaleString('ko-KR') : '—'
+}
+
+/** 예상 잔액이 있고 처리계획이 작성된 세목만: 비목, 세목, 예상 잔액, 처리 방법, 세부내용 */
+export function buildBalancePlanRows(forecast: BudgetForecastCategory[] | undefined | null) {
+  return normalizeBudgetForecast(forecast)
+    .flatMap((c) =>
+      c.items.map((item) => ({
+        category: c.category,
+        name: item.name,
+        remaining: calcForecastItem(item).remaining,
+        method: item.balance_plan?.method ?? '',
+        detail: item.balance_plan?.detail ?? '',
+      }))
+    )
+    .filter((r) => r.remaining > 0 && (r.method || r.detail.trim()))
+}
+
+/** 엑셀 출력용: 머리글 1행 + 세목·비목 합계·총 합계 행 (+ 예상 잔액 처리계획) */
+export function forecastSheetRows(forecast: BudgetForecastCategory[] | undefined | null): string[][] {
+  const amounts = (r: ForecastAmounts) => [
+    fmtAmount(r.budget),
+    fmtAmount(r.gov),
+    fmtAmount(r.self),
+    fmtAmount(r.subtotal),
+    r.budget || r.subtotal ? r.remaining.toLocaleString('ko-KR') : '—',
+  ]
+  return [
+    ['비목', '세목', '예산', '집행 추계(국고보조금)', '집행 추계(자기부담금)', '집행 추계(소계)', '예상 잔액'],
+    ...buildForecastRows(forecast).map((r) =>
+      r.kind === 'item'
+        ? [r.category, r.name || '—', ...amounts(r)]
+        : r.kind === 'category_total'
+          ? [r.category, '합계', ...amounts(r)]
+          : ['총 합계', '', fmtAmount(r.budget), fmtAmount(r.gov) + fmtShare(r.gov, r.subtotal), fmtAmount(r.self) + fmtShare(r.self, r.subtotal), ...amounts(r).slice(3)]
+    ),
+    ...(buildBalancePlanRows(forecast).length > 0
+      ? [
+          [],
+          ['예상 잔액 처리계획'],
+          ['비목', '세목', '예상 잔액', '처리 방법', '세부내용'],
+          ...buildBalancePlanRows(forecast).map((p) => [p.category, p.name || '—', p.remaining.toLocaleString('ko-KR'), p.method || '—', p.detail || '—']),
+        ]
+      : []),
+  ]
+}
+
+/** 양식에 따른 예산 섹션 제목과 활용계획 라벨 */
+export function budgetLabels(content: Pick<WeeklyContent, 'budget_forecast'>) {
+  return content.budget_forecast
+    ? { section: '예산 집행 추계 (사업종료일까지)', plan: '잔액 활용계획' }
+    : { section: '예산 집행현황', plan: '향후예산 활용계획' }
 }
 
 const emptyBudget: BudgetEntry = { budget: '', executed: '' }

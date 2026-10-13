@@ -7,6 +7,7 @@ import PrintButtons from '../print/PrintButtons'
 import {
   KPI_LABELS, ACTIVITY_LABELS,
   calcBudgetRow, calcBudgetSubtotal, fmtNum, calcRate,
+  budgetLabels, buildForecastRows, buildBalancePlanRows, fmtAmount, fmtShare,
 } from '@/app/(app)/reports/report-types'
 import type { WeeklyContent } from '@/app/(app)/reports/report-types'
 
@@ -258,7 +259,52 @@ export default async function BulkPrintPage({
 
             {/* 4. 예산 집행현황 */}
             <div className="no-break">
-              <h2 style={H2}>4. 예산 집행현황</h2>
+              <h2 style={H2}>4. {budgetLabels(content).section}</h2>
+              {content.budget_forecast ? (
+              <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 0 }}>
+                <thead>
+                  <tr>
+                    <th rowSpan={2} style={{ ...TH, width: 70 }}>비목</th>
+                    <th rowSpan={2} style={TH}>세목</th>
+                    <th rowSpan={2} style={TH}>예산</th>
+                    <th colSpan={3} style={TH}>집행 추계</th>
+                    <th rowSpan={2} style={TH}>예상 잔액</th>
+                  </tr>
+                  <tr>
+                    <th style={TH}>국고보조금</th>
+                    <th style={TH}>자기부담금</th>
+                    <th style={TH}>소계</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {buildForecastRows(content.budget_forecast).map((r, i) => {
+                    const num = { ...TD, textAlign: 'right' as const, ...(r.kind === 'item' ? {} : { fontWeight: 700, background: '#f3f3f3' }) }
+                    return (
+                      <tr key={i}>
+                        {r.kind === 'item' ? (
+                          <>
+                            {r.categoryRowSpan > 0 && <th rowSpan={r.categoryRowSpan} style={TH}>{r.category}</th>}
+                            <td style={TD}>{r.name || '—'}</td>
+                          </>
+                        ) : r.kind === 'total' ? (
+                          <th colSpan={2} style={TH}>총 합계</th>
+                        ) : (
+                          <>
+                            {r.showCategory && <th style={TH}>{r.category}</th>}
+                            <td style={{ ...TD, fontWeight: 700, background: '#f3f3f3' }}>합계</td>
+                          </>
+                        )}
+                        <td style={num}>{fmtAmount(r.budget)}</td>
+                        <td style={num}>{fmtAmount(r.gov)}{r.kind === 'total' && fmtShare(r.gov, r.subtotal)}</td>
+                        <td style={num}>{fmtAmount(r.self)}{r.kind === 'total' && fmtShare(r.self, r.subtotal)}</td>
+                        <td style={num}>{fmtAmount(r.subtotal)}</td>
+                        <td style={num}>{r.budget || r.subtotal ? r.remaining.toLocaleString('ko-KR') : '—'}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+              ) : (
               <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 0 }}>
                 <thead>
                   <tr>
@@ -293,10 +339,37 @@ export default async function BulkPrintPage({
                   </tr>
                 </tbody>
               </table>
+              )}
+
+              {buildBalancePlanRows(content.budget_forecast).length > 0 && (
+                <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 8, marginBottom: 0 }}>
+                  <thead>
+                    <tr><th colSpan={5} style={TH}>예상 잔액 처리계획</th></tr>
+                    <tr>
+                      <th style={{ ...TH, whiteSpace: 'nowrap' }}>비목</th>
+                      <th style={{ ...TH, whiteSpace: 'nowrap' }}>세목</th>
+                      <th style={{ ...TH, whiteSpace: 'nowrap' }}>예상 잔액</th>
+                      <th style={{ ...TH, whiteSpace: 'nowrap' }}>처리 방법</th>
+                      <th style={{ ...TH, width: '100%' }}>세부내용</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {buildBalancePlanRows(content.budget_forecast).map((p, i) => (
+                      <tr key={i}>
+                        <th style={{ ...TH, whiteSpace: 'nowrap' }}>{p.category}</th>
+                        <td style={{ ...TD, whiteSpace: 'nowrap' }}>{p.name || '—'}</td>
+                        <td style={{ ...TD, textAlign: 'right', whiteSpace: 'nowrap' }}>{p.remaining.toLocaleString('ko-KR')}</td>
+                        <td style={{ ...TD, textAlign: 'center', whiteSpace: 'nowrap' }}>{p.method || '—'}</td>
+                        <td style={{ ...TD, whiteSpace: 'pre-wrap' }}>{p.detail || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
 
               {content.budget_plan && (
                 <div style={{ marginTop: 8 }}>
-                  <p style={{ fontSize: 9, fontWeight: 700, color: '#333', marginBottom: 3 }}>향후예산 활용계획</p>
+                  <p style={{ fontSize: 9, fontWeight: 700, color: '#333', marginBottom: 3 }}>{budgetLabels(content).plan}</p>
                   <div style={{ border: '1px solid #555', padding: '6px 8px', fontSize: 9, whiteSpace: 'pre-wrap' }}>
                     {content.budget_plan}
                   </div>

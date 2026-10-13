@@ -3,6 +3,7 @@ import {
   WeeklyContent,
   KPI_LABELS, ACTIVITY_LABELS,
   calcRate, calcBudgetRow, calcBudgetSubtotal, fmtNum,
+  budgetLabels, buildForecastRows, buildBalancePlanRows, forecastSheetRows, fmtAmount, fmtShare,
 } from '@/app/(app)/reports/report-types'
 
 export interface ReportDownloadData {
@@ -19,7 +20,7 @@ export interface ReportDownloadData {
 export async function downloadReportExcel(report: ReportDownloadData) {
   const wb = new ExcelJS.Workbook()
   const ws = wb.addWorksheet('주간보고서')
-  ;[22, 28, 28, 18, 14].forEach((w, i) => { ws.getColumn(i + 1).width = w })
+  ;[22, 28, 28, 18, 18, 18, 18].forEach((w, i) => { ws.getColumn(i + 1).width = w })
   const rows = buildWeeklyRows(report)
   for (const row of rows) ws.addRow(row)
   const buffer = await wb.xlsx.writeBuffer()
@@ -82,29 +83,34 @@ function buildWeeklyRows(report: ReportDownloadData): (string | number)[][] {
   })
   rows.push([])
 
-  rows.push(['4. 예산 집행현황'])
-  rows.push(['구분', '예산', '집행액', '집행잔액', '집행률'])
-  rows.push(['국고보조금',
-    fmtNum(safeBudget.operator_gov.budget) || '—',
-    fmtNum(safeBudget.operator_gov.executed) || '—',
-    opGov.budget ? opGov.remaining.toLocaleString('ko-KR') : '—',
-    opGov.rate,
-  ])
-  rows.push(['자기부담금',
-    fmtNum(safeBudget.operator_self.budget) || '—',
-    fmtNum(safeBudget.operator_self.executed) || '—',
-    opSelf.budget ? opSelf.remaining.toLocaleString('ko-KR') : '—',
-    opSelf.rate,
-  ])
-  rows.push(['합계',
-    total.budget ? total.budget.toLocaleString('ko-KR') : '—',
-    total.executed ? total.executed.toLocaleString('ko-KR') : '—',
-    total.budget ? total.remaining.toLocaleString('ko-KR') : '—',
-    total.rate,
-  ])
+  const labels = budgetLabels(wc)
+  rows.push([`4. ${labels.section}`])
+  if (wc.budget_forecast) {
+    rows.push(...forecastSheetRows(wc.budget_forecast))
+  } else {
+    rows.push(['구분', '예산', '집행액', '집행잔액', '집행률'])
+    rows.push(['국고보조금',
+      fmtNum(safeBudget.operator_gov.budget) || '—',
+      fmtNum(safeBudget.operator_gov.executed) || '—',
+      opGov.budget ? opGov.remaining.toLocaleString('ko-KR') : '—',
+      opGov.rate,
+    ])
+    rows.push(['자기부담금',
+      fmtNum(safeBudget.operator_self.budget) || '—',
+      fmtNum(safeBudget.operator_self.executed) || '—',
+      opSelf.budget ? opSelf.remaining.toLocaleString('ko-KR') : '—',
+      opSelf.rate,
+    ])
+    rows.push(['합계',
+      total.budget ? total.budget.toLocaleString('ko-KR') : '—',
+      total.executed ? total.executed.toLocaleString('ko-KR') : '—',
+      total.budget ? total.remaining.toLocaleString('ko-KR') : '—',
+      total.rate,
+    ])
+  }
   if (wc.budget_plan) {
     rows.push([])
-    rows.push(['향후예산 활용계획', wc.budget_plan])
+    rows.push([labels.plan, wc.budget_plan])
   }
 
   return rows
@@ -185,6 +191,35 @@ function buildWeeklyHtml(report: ReportDownloadData): string {
     </tr>`
   }).join('')
 
+  const labels = budgetLabels(wc)
+  const forecastTable = wc.budget_forecast ? `<table>
+      <thead>
+        <tr><th rowspan="2" style="width:70px">비목</th><th rowspan="2">세목</th><th rowspan="2">예산</th><th colspan="3">집행 추계</th><th rowspan="2">예상 잔액</th></tr>
+        <tr><th>국고보조금</th><th>자기부담금</th><th>소계</th></tr>
+      </thead>
+      <tbody>${buildForecastRows(wc.budget_forecast).map((r) => {
+        const amounts = `
+          <td class="text-right">${fmtAmount(r.budget)}</td>
+          <td class="text-right">${fmtAmount(r.gov)}${r.kind === 'total' ? fmtShare(r.gov, r.subtotal) : ''}</td>
+          <td class="text-right">${fmtAmount(r.self)}${r.kind === 'total' ? fmtShare(r.self, r.subtotal) : ''}</td>
+          <td class="text-right">${fmtAmount(r.subtotal)}</td>
+          <td class="text-right">${r.budget || r.subtotal ? r.remaining.toLocaleString('ko-KR') : '—'}</td>`
+        if (r.kind === 'item') {
+          return `<tr>${r.categoryRowSpan > 0 ? `<th rowspan="${r.categoryRowSpan}">${esc(r.category)}</th>` : ''}<td>${esc(r.name) || '—'}</td>${amounts}</tr>`
+        }
+        if (r.kind === 'total') {
+          return `<tr style="font-weight:bold;background:#f3f3f3"><th colspan="2">총 합계</th>${amounts}</tr>`
+        }
+        return `<tr style="font-weight:bold;background:#f3f3f3">${r.showCategory ? `<th>${esc(r.category)}</th>` : ''}<td>합계</td>${amounts}</tr>`
+      }).join('')}</tbody>
+    </table>${buildBalancePlanRows(wc.budget_forecast).length > 0 ? `<table>
+      <thead>
+        <tr><th colspan="5">예상 잔액 처리계획</th></tr>
+        <tr><th style="white-space:nowrap">비목</th><th style="white-space:nowrap">세목</th><th style="white-space:nowrap">예상 잔액</th><th style="white-space:nowrap">처리 방법</th><th style="width:100%">세부내용</th></tr>
+      </thead>
+      <tbody>${buildBalancePlanRows(wc.budget_forecast).map((p) => `<tr><th style="white-space:nowrap">${esc(p.category)}</th><td style="white-space:nowrap">${esc(p.name) || '—'}</td><td class="text-right" style="white-space:nowrap">${p.remaining.toLocaleString('ko-KR')}</td><td class="text-center" style="white-space:nowrap">${esc(p.method) || '—'}</td><td class="pre">${esc(p.detail) || '—'}</td></tr>`).join('')}</tbody>
+    </table>` : ''}` : ''
+
   const body = `
     <h1>주간 실적보고서</h1>
     <p class="subtitle">${esc(report.period_label)}</p>
@@ -205,8 +240,8 @@ function buildWeeklyHtml(report: ReportDownloadData): string {
       <tbody>${actRows}</tbody>
     </table>
 
-    <h2>4. 예산 집행현황</h2>
-    <table>
+    <h2>4. ${labels.section}</h2>
+    ${wc.budget_forecast ? forecastTable : `<table>
       <thead><tr><th style="width:100px">구분</th><th>예산</th><th>집행액</th><th>집행잔액</th><th style="width:60px">집행률</th></tr></thead>
       <tbody>
         <tr>
@@ -231,8 +266,8 @@ function buildWeeklyHtml(report: ReportDownloadData): string {
           <td class="text-center">${total.rate}</td>
         </tr>
       </tbody>
-    </table>
-    ${wc.budget_plan ? `<div class="plan-label">향후예산 활용계획</div><div class="plan-box">${esc(wc.budget_plan)}</div>` : ''}
+    </table>`}
+    ${wc.budget_plan ? `<div class="plan-label">${labels.plan}</div><div class="plan-box">${esc(wc.budget_plan)}</div>` : ''}
   `
   return wrapHtml('주간 실적보고서', body)
 }

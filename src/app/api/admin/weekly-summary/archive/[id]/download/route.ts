@@ -7,7 +7,7 @@ import {
   HeadingLevel, AlignmentType, WidthType, BorderStyle, ShadingType,
 } from 'docx'
 import type { WeeklySummaryData } from '@/lib/weeklySummary'
-import { KPI_LABELS } from '@/lib/weeklySummary'
+import { KPI_LABELS, budgetWording } from '@/lib/weeklySummary'
 
 // ── AI 보고서 타입 ─────────────────────────────────────────────────────────────
 
@@ -178,14 +178,14 @@ async function buildXlsx(
   if (snapshot.budget?.total_budget > 0 || (snapshot.budget?.org_executions?.length ?? 0) > 0) {
     const budgetSheet = wb.addWorksheet('예산 집행')
     ;[20, 16].forEach((w, i) => { budgetSheet.getColumn(i + 1).width = w })
-    budgetSheet.addRow([`${periodLabel} 예산 집행 현황`])
+    budgetSheet.addRow([`${periodLabel} ${budgetWording(snapshot.budget).title}`])
     budgetSheet.addRow([])
     budgetSheet.addRow(['구분', '금액(원)'])
     budgetSheet.addRow(['총 예산(보조금)', snapshot.budget.total_budget])
-    budgetSheet.addRow(['총 집행액', snapshot.budget.total_executed])
-    budgetSheet.addRow(['집행률', snapshot.budget.execution_rate])
+    budgetSheet.addRow([budgetWording(snapshot.budget).isForecast ? '집행 추계 합계' : '총 집행액', snapshot.budget.total_executed])
+    budgetSheet.addRow([budgetWording(snapshot.budget).isForecast ? '추계 집행률' : '집행률', snapshot.budget.execution_rate])
     budgetSheet.addRow([])
-    budgetSheet.addRow(['기관명', '집행액(원)'])
+    budgetSheet.addRow(['기관명', budgetWording(snapshot.budget).isForecast ? '집행 추계(원)' : '집행액(원)'])
     for (const e of (snapshot.budget.org_executions ?? [])) {
       budgetSheet.addRow([e.org, e.executed])
     }
@@ -348,11 +348,11 @@ async function buildDocx(
   // ── 예산 테이블 ──
   const budgetChildren: (Paragraph | Table)[] = []
   if (snapshot.budget?.total_budget > 0) {
-    budgetChildren.push(sectionHeading(3, '예산 집행 현황'))
+    budgetChildren.push(sectionHeading(3, budgetWording(snapshot.budget).title))
     const budgetRows = [
       ['총 사업 예산(보조금)', snapshot.budget.total_budget.toLocaleString() + '원'],
-      ['누적 집행액', snapshot.budget.total_executed.toLocaleString() + '원'],
-      ['집행률', snapshot.budget.execution_rate],
+      [budgetWording(snapshot.budget).totalLabel, snapshot.budget.total_executed.toLocaleString() + '원'],
+      [budgetWording(snapshot.budget).isForecast ? '추계 집행률' : '집행률', snapshot.budget.execution_rate],
     ]
     budgetChildren.push(
       new Table({
@@ -370,13 +370,13 @@ async function buildDocx(
 
     if ((snapshot.budget.org_executions?.length ?? 0) > 0) {
       budgetChildren.push(
-        new Paragraph({ spacing: { before: 160 }, children: [new TextRun({ text: '기관별 집행 내역', bold: true, size: 18, color: '374151' })] }),
+        new Paragraph({ spacing: { before: 160 }, children: [new TextRun({ text: budgetWording(snapshot.budget).orgTitle, bold: true, size: 18, color: '374151' })] }),
         new Table({
           width: { size: 60, type: WidthType.PERCENTAGE },
           rows: [
             new TableRow({
               tableHeader: true,
-              children: [headerCell('기관명', 50), headerCell('집행액(원)', 50)],
+              children: [headerCell('기관명', 50), headerCell(budgetWording(snapshot.budget).isForecast ? '집행 추계(원)' : '집행액(원)', 50)],
             }),
             ...(snapshot.budget.org_executions ?? []).map((e, i) =>
               new TableRow({

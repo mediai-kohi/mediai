@@ -8,7 +8,9 @@ import {
   calcBudgetRow,
   calcBudgetSubtotal,
   fmtNum,
+  budgetLabels,
 } from './report-types'
+import BudgetForecastTable from './BudgetForecastTable'
 
 interface Props {
   periodLabel: string
@@ -125,7 +127,12 @@ function WeeklyPreview({ content, periodLabel }: { content: WeeklyContent; perio
 
       {/* 4. 예산 집행현황 */}
       <section>
-        <h3 className="text-xs font-bold text-gray-700 mb-1 border-b border-gray-400 pb-0.5">4. 예산 집행현황</h3>
+        <h3 className="text-xs font-bold text-gray-700 mb-1 border-b border-gray-400 pb-0.5">4. {budgetLabels(content).section}</h3>
+        {content.budget_forecast ? (
+          <div className="overflow-x-auto">
+            <BudgetForecastTable forecast={content.budget_forecast} th={TH} td={TD} />
+          </div>
+        ) : (
         <table className="w-full border-collapse text-xs">
           <thead>
             <tr>
@@ -160,9 +167,10 @@ function WeeklyPreview({ content, periodLabel }: { content: WeeklyContent; perio
             </tr>
           </tbody>
         </table>
+        )}
         {budget_plan && (
           <div className="mt-1.5 border border-gray-400 px-3 py-2">
-            <p className="text-xs font-semibold text-gray-600 mb-1">향후예산 활용계획</p>
+            <p className="text-xs font-semibold text-gray-600 mb-1">{budgetLabels(content).plan}</p>
             <p className="text-xs text-gray-800 whitespace-pre-wrap">{budget_plan}</p>
           </div>
         )}

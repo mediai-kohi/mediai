@@ -2,6 +2,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { NextResponse } from 'next/server'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
+import { calcBudgetForecast, type ForecastAmounts } from '@/app/(app)/reports/report-types'
 
 async function requireAdmin() {
   const supabase = await createClient()
@@ -69,11 +70,22 @@ export async function POST(request: Request) {
   // 예산 집계 (기관별)
   interface BudgetRow { org: string; govBudget: number; govExec: number; selfBudget: number; selfExec: number }
   const budgetRows: BudgetRow[] = []
+  const forecastRows: ({ org: string } & ForecastAmounts)[] = []
   const parseNum = (v: unknown) => parseFloat(String(v).replace(/[^0-9.]/g, '')) || 0
   for (const r of reports) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const c = r.content as any
     if (c?.version !== 2 || r.type !== 'weekly') continue
+    if (c?.budget_forecast) {
+      // 집행 추계 양식(2026년 10월 3주차~): 기관의 최신 값 하나만 사용
+      const t = calcBudgetForecast(c.budget_forecast).total
+      if (t.budget > 0 || t.subtotal > 0) {
+        const idx = forecastRows.findIndex(f => f.org === r.organization)
+        if (idx >= 0) forecastRows[idx] = { org: r.organization, ...t }
+        else forecastRows.push({ org: r.organization, ...t })
+      }
+      continue
+    }
     const govBudget = parseNum(c?.budget?.operator_gov?.budget)
     const govExec = parseNum(c?.budget?.operator_gov?.executed)
     const selfBudget = parseNum(c?.budget?.operator_self?.budget)
@@ -96,7 +108,15 @@ export async function POST(request: Request) {
   const totalSelfExec = budgetRows.reduce((s, b) => s + b.selfExec, 0)
   const fmtMoney = (n: number) => n > 0 ? `${n.toLocaleString('ko-KR')}원` : '-'
   const fmtRate = (exec: number, budget: number) => budget > 0 ? `${((exec / budget) * 100).toFixed(1)}%` : '-'
-  const budgetText = budgetRows.length > 0 ? `
+  const isForecast = forecastRows.length > 0
+  const hasBudget = isForecast || budgetRows.length > 0
+  const fcSum = (key: keyof ForecastAmounts) => forecastRows.reduce((s, f) => s + f[key], 0)
+  const fmtSigned = (n: number) => `${n.toLocaleString('ko-KR')}원`
+  const budgetText = isForecast ? `
+【예산 집행 추계 (사업종료일까지의 예상치이며 현재까지의 실제 집행액이 아님)】
+전체: 예산 ${fmtMoney(fcSum('budget'))}, 집행 추계 ${fmtMoney(fcSum('subtotal'))} (국고보조금 ${fmtMoney(fcSum('gov'))} / 자기부담금 ${fmtMoney(fcSum('self'))}), 추계 집행률 ${fmtRate(fcSum('subtotal'), fcSum('budget'))}, 예상 잔액 ${fmtSigned(fcSum('remaining'))}
+기관별:
+${forecastRows.map(f => `- ${f.org}: 예산 ${fmtMoney(f.budget)} / 집행 추계 ${fmtMoney(f.subtotal)} (국고 ${fmtMoney(f.gov)}, 자기부담 ${fmtMoney(f.self)}) / 추계 집행률 ${fmtRate(f.subtotal, f.budget)} / 예상 잔액 ${fmtSigned(f.remaining)}`).join('\n')}` : budgetRows.length > 0 ? `
 【예산 집행 현황】
 전체: 국고보조금 예산 ${fmtMoney(totalGovBudget)}, 집행 ${fmtMoney(totalGovExec)} (${fmtRate(totalGovExec, totalGovBudget)}) / 자기부담금 예산 ${fmtMoney(totalSelfBudget)}, 집행 ${fmtMoney(totalSelfExec)} (${fmtRate(totalSelfExec, totalSelfBudget)})
 기관별:
@@ -195,7 +215,15 @@ ${formatted}${budgetText}
   "institution_details": [
     /* 아래는 예시 1개 — 실제로는 ${orgCount}개 기관 전부 포함: ${orgList} */
     {"organization": "기관명", "kpi_status": "프로그램 운영 N과정, 전문인력 양성 수료 N명·교육중 N명 등 주요 지표 수치", "current_week": "이번 주 실적 2~3문장", "next_week": "차주 계획 1~2문장"}
-  ]${budgetRows.length > 0 ? `,
+  ]${isForecast ? `,
+  "budget_analysis": {
+    "summary": "사업종료일까지의 예산 집행 추계 종합 분석 (2~3문장, 총예산 대비 추계 집행률·예상 잔액 및 특이사항. 실제 집행액이 아닌 추계임을 명시)",
+    "org_rows": [
+      /* 예산 데이터가 있는 기관별 1개씩 — 실제 데이터 기반으로 작성. 추계 값에는 반드시 '추계' 표기를 붙임 */
+      {"organization": "기관명", "total_budget": "총예산", "total_executed": "추계 N원 (집행 추계 소계)", "execution_rate": "추계 N% (추계 집행률)", "assessment": "정상/주의/잔액과다/초과 + 예상 잔액을 포함한 한 문장 평가"}
+    ],
+    "management_point": "예상 잔액 활용 및 집행 추계 관련 핵심 관리 포인트 (1~2문장)"
+  }` : hasBudget ? `,
   "budget_analysis": {
     "summary": "전체 예산 집행 현황 종합 분석 (2~3문장, 총예산 대비 집행률 및 특이사항)",
     "org_rows": [
