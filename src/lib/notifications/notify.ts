@@ -6,7 +6,6 @@ export type UserNotificationType =
   | 'inquiry_reply'
   | 'report_revision'
   | 'report_reminder'
-  | 'moh_report_submitted'
 
 export type AdminNotificationType = 'new_inquiry' | 'new_report'
 
@@ -35,9 +34,7 @@ export async function notifyUser(
     const url = referenceId
       ? type === 'inquiry_reply'
         ? `/inquiries/${referenceId}`
-        : type === 'moh_report_submitted'
-          ? `/ministry/${referenceId}`
-          : `/reports/${referenceId}`
+        : `/reports/${referenceId}`
       : type === 'report_reminder'
         ? '/reports'
         : '/'

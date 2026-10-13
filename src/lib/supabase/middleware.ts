@@ -5,20 +5,19 @@ import { NextResponse, type NextRequest } from 'next/server'
 // 경로 prefix별 접근 허용 role. 매칭되는 prefix인데 role이 목록에 없으면 '/'로 리다이렉트.
 const ROUTE_ACCESS: { prefix: string; roles: string[] }[] = [
   { prefix: '/admin', roles: ['super_admin'] },
-  { prefix: '/moh-report', roles: ['super_admin', 'moh_editor'] },
   { prefix: '/ministry', roles: ['super_admin', 'ministry_viewer'] },
 ]
 
 // moh_editor/ministry_viewer는 아래 prefix 밖으로 나갈 수 없도록 가둠(그 외 role은 제한 없음)
 // '/'는 prefix가 아니라 정확히 홈 경로일 때만 매치(그렇지 않으면 모든 경로가 '/'로 시작하므로 가둠이 무력화됨)
 const CONFINED_ALLOWED: Record<string, string[]> = {
-  moh_editor: ['/moh-report', '/moh-weekly-report', '/mypage'],
-  ministry_viewer: ['/', '/ministry', '/moh-weekly-report', '/weekly-summary', '/calendar', '/inquiries', '/ai-qa', '/mypage'],
+  moh_editor: ['/mypage'],
+  ministry_viewer: ['/', '/ministry', '/weekly-summary', '/calendar', '/inquiries', '/ai-qa', '/mypage'],
 }
 
 const CONFINED_HOME: Record<string, string> = {
-  moh_editor: '/moh-report',
-  ministry_viewer: '/ministry',
+  moh_editor: '/mypage',
+  ministry_viewer: '/',
 }
 
 export async function updateSession(request: NextRequest, extraHeaders?: Record<string, string>) {
@@ -67,13 +66,6 @@ export async function updateSession(request: NextRequest, extraHeaders?: Record<
   } = await supabase.auth.getUser()
 
   const { pathname } = request.nextUrl
-
-  // 교육 참가자 화면(로그인 없음, 참가자 코드로만 검증) — /edu/apply(신청), /edu/t(확인증·만족도조사)
-  // 세션 유무·role과 무관하게 완전히 공개된 경로이므로 아래의 로그인/role 가드를 전부 건너뛴다
-  // (로그인한 채로 QR을 스캔하는 confined role 사용자가 이 페이지에서 튕겨나가지 않도록)
-  if (pathname.startsWith('/edu/apply') || pathname.startsWith('/edu/t')) {
-    return supabaseResponse
-  }
 
   // 비로그인 사용자가 /auth/*, /api/* 외 경로 접근 시 로그인으로 리다이렉트
   // (API 라우트는 자체적으로 인증을 처리)
