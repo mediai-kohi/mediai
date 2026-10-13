@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react'
 import dynamic from 'next/dynamic'
+import Link from 'next/link'
 import type { WeeklySummaryData, OrgStatus } from '@/lib/weeklySummary'
 
 const OrgDetailDrawer = dynamic(() => import('./OrgDetailDrawer'), { ssr: false })
@@ -296,9 +297,10 @@ interface Props {
   initialData: WeeklySummaryData | null
   aiReport?: AiReportData | null
   readOnly?: boolean
+  weekNav?: { prevHref: string; nextHref: string | null; latestHref: string | null }
 }
 
-export default function WeeklySummarySection({ initialData, aiReport, readOnly = false }: Props) {
+export default function WeeklySummarySection({ initialData, aiReport, readOnly = false, weekNav }: Props) {
   const [data, setData] = useState<WeeklySummaryData | null>(initialData)
   const [selectedOrg, setSelectedOrg] = useState<OrgStatus | null>(null)
   const [selectedOrgBudget, setSelectedOrgBudget] = useState<WeeklySummaryData['budget']['org_executions'][number] | null>(null)
@@ -437,6 +439,27 @@ export default function WeeklySummarySection({ initialData, aiReport, readOnly =
         </p>
         <span className="text-xs text-gray-400 shrink-0">{data.period_start} ~ {data.period_end}</span>
       </div>
+
+      {/* ── 주차 이동 ── */}
+      {weekNav && (
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <Link href={weekNav.prevHref} className="px-3 py-1.5 font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+            ← 이전 주
+          </Link>
+          {weekNav.nextHref ? (
+            <Link href={weekNav.nextHref} className="px-3 py-1.5 font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+              다음 주 →
+            </Link>
+          ) : (
+            <span className="px-3 py-1.5 font-medium text-gray-300 bg-white border border-gray-100 rounded-lg">다음 주 →</span>
+          )}
+          {weekNav.latestHref && (
+            <Link href={weekNav.latestHref} className="px-3 py-1.5 font-medium text-blue-600 hover:text-blue-700">
+              최신 주차로
+            </Link>
+          )}
+        </div>
+      )}
 
       {/* ── 1. 핵심 성과 대시보드 ── */}
       <div>

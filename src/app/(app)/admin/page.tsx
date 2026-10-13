@@ -13,7 +13,22 @@ import {
 } from '@/lib/weeklySummary'
 import type { WeeklySummaryData } from '@/lib/weeklySummary'
 
-export default async function AdminDashboard() {
+// ?week=YYYY-MM-DD → 해당 날짜가 속한 주의 월요일. 형식이 잘못됐거나 최신 주차보다 미래면 null
+function parseWeekParam(value: string | undefined, latestMonday: Date): Date | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value ?? '')
+  if (!m) return null
+  const date = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+  if (Number.isNaN(date.getTime())) return null
+  const monday = getMonday(date)
+  return monday.getTime() > latestMonday.getTime() ? null : monday
+}
+
+export default async function AdminDashboard({
+  searchParams,
+}: {
+  searchParams: Promise<{ week?: string }>
+}) {
+  const { week: weekParam } = await searchParams
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/auth/login')
@@ -25,8 +40,10 @@ export default async function AdminDashboard() {
   const calendarMonday = getMonday(now)
   const calendarSunday = addDays(calendarMonday, 6)
   calendarSunday.setHours(23, 59, 59, 999)
-  // 주간 실적 요약은 목요일 기준(월~수: 지난주, 목~일: 이번주)
-  const monday = getWeekStartForDisplay(now)
+  // 주간 실적 요약은 목요일 기준(월~수: 지난주, 목~일: 이번주). ?week로 지난 주차를 열어 확정할 수 있음
+  const latestMonday = getWeekStartForDisplay(now)
+  const monday = parseWeekParam(weekParam, latestMonday) ?? latestMonday
+  const isLatestWeek = monday.getTime() === latestMonday.getTime()
   const startStr = formatDateOnly(monday)
   const endStr = formatDateOnly(addDays(monday, 6))
 
@@ -110,7 +127,16 @@ export default async function AdminDashboard() {
       </div>
 
       {/* 주간 실적 요약 */}
-      <WeeklySummarySection initialData={summaryData} aiReport={latestAiReportRaw?.result ?? null} />
+      <WeeklySummarySection
+        key={startStr}
+        initialData={summaryData}
+        aiReport={latestAiReportRaw?.result ?? null}
+        weekNav={{
+          prevHref: `/admin?week=${formatDateOnly(addDays(monday, -7))}`,
+          nextHref: isLatestWeek ? null : `/admin?week=${formatDateOnly(addDays(monday, 7))}`,
+          latestHref: isLatestWeek ? null : '/admin',
+        }}
+      />
     </div>
   )
 }
