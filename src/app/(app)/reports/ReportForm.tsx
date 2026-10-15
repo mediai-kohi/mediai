@@ -731,8 +731,9 @@ function WeeklyFormBody({
 
       {/* ── 4. 예산 집행 추계 (BUDGET_FORECAST_START 이후 주차) ── */}
       {useForecast && (
-      <SectionCard title="4. 예산 집행 추계 (사업종료일까지)">
-        <p className="text-[11px] text-gray-400 mb-2">비목별로 세목을 추가해 예산과 사업종료일까지의 집행 추계를 입력하세요. 소계·예상 잔액·합계는 자동 계산됩니다. (단위: 원)</p>
+      <SectionCard title="4. 예산 집행 추계">
+        <p className="text-xs text-gray-600 mb-1">현재 시점에서부터 사업 종료일(11.30.)까지의 예상 집행금액을 입력하세요.</p>
+        <p className="text-[11px] text-gray-400 mb-2">비목별로 세목을 추가해 예산과 예상 집행금액을 입력하면 소계·예상 잔액·합계는 자동 계산됩니다. (단위: 원)</p>
         <div className="overflow-x-auto mb-3">
           <table className="w-full border-collapse table-fixed min-w-[760px]">
             <thead>
@@ -740,7 +741,7 @@ function WeeklyFormBody({
                 <th rowSpan={2} className={`${TH_BASE} w-20 text-center`}>비목</th>
                 <th rowSpan={2} className={`${TH_BASE} text-center`}>세목</th>
                 <th rowSpan={2} className={`${TH_BASE} w-28 text-center`}>예산</th>
-                <th colSpan={3} className={`${TH_BASE} text-center`}>집행 추계</th>
+                <th colSpan={3} className={`${TH_BASE} text-center`}>예상 집행금액 (~11.30.)</th>
                 <th rowSpan={2} className={`${TH_BASE} w-28 text-center`}>예상 잔액</th>
                 <th rowSpan={2} className={`${TH_BASE} w-10 text-center`}></th>
               </tr>

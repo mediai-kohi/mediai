@@ -246,7 +246,7 @@ export function forecastSheetRows(forecast: BudgetForecastCategory[] | undefined
     r.budget || r.subtotal ? r.remaining.toLocaleString('ko-KR') : '—',
   ]
   return [
-    ['비목', '세목', '예산', '집행 추계(국고보조금)', '집행 추계(자기부담금)', '집행 추계(소계)', '예상 잔액'],
+    ['비목', '세목', '예산', '예상 집행금액(국고보조금, ~11.30.)', '예상 집행금액(자기부담금, ~11.30.)', '예상 집행금액(소계, ~11.30.)', '예상 잔액'],
     ...buildForecastRows(forecast).map((r) =>
       r.kind === 'item'
         ? [r.category, r.name || '—', ...amounts(r)]
@@ -268,7 +268,7 @@ export function forecastSheetRows(forecast: BudgetForecastCategory[] | undefined
 /** 양식에 따른 예산 섹션 제목과 활용계획 라벨 */
 export function budgetLabels(content: Pick<WeeklyContent, 'budget_forecast'>) {
   return content.budget_forecast
-    ? { section: '예산 집행 추계 (사업종료일까지)', plan: '잔액 활용계획' }
+    ? { section: '예산 집행 추계', plan: '잔액 활용계획' }
     : { section: '예산 집행현황', plan: '향후예산 활용계획' }
 }
 

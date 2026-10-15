@@ -23,7 +23,7 @@ export default function BudgetForecastTable({
           <th rowSpan={2} className={`${th} w-20`}>비목</th>
           <th rowSpan={2} className={th}>세목</th>
           <th rowSpan={2} className={th}>예산</th>
-          <th colSpan={3} className={th}>집행 추계</th>
+          <th colSpan={3} className={th}>예상 집행금액 (~11.30.)</th>
           <th rowSpan={2} className={th}>예상 잔액</th>
         </tr>
         <tr>

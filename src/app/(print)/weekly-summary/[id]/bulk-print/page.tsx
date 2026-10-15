@@ -267,7 +267,7 @@ export default async function BulkPrintPage({
                     <th rowSpan={2} style={{ ...TH, width: 70 }}>비목</th>
                     <th rowSpan={2} style={TH}>세목</th>
                     <th rowSpan={2} style={TH}>예산</th>
-                    <th colSpan={3} style={TH}>집행 추계</th>
+                    <th colSpan={3} style={TH}>예상 집행금액 (~11.30.)</th>
                     <th rowSpan={2} style={TH}>예상 잔액</th>
                   </tr>
                   <tr>

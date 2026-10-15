@@ -194,7 +194,7 @@ function buildWeeklyHtml(report: ReportDownloadData): string {
   const labels = budgetLabels(wc)
   const forecastTable = wc.budget_forecast ? `<table>
       <thead>
-        <tr><th rowspan="2" style="width:70px">비목</th><th rowspan="2">세목</th><th rowspan="2">예산</th><th colspan="3">집행 추계</th><th rowspan="2">예상 잔액</th></tr>
+        <tr><th rowspan="2" style="width:70px">비목</th><th rowspan="2">세목</th><th rowspan="2">예산</th><th colspan="3">예상 집행금액 (~11.30.)</th><th rowspan="2">예상 잔액</th></tr>
         <tr><th>국고보조금</th><th>자기부담금</th><th>소계</th></tr>
       </thead>
       <tbody>${buildForecastRows(wc.budget_forecast).map((r) => {
