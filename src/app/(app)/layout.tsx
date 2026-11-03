@@ -5,6 +5,7 @@ import Nav from '@/components/layout/Nav'
 import MobileHeader from '@/components/layout/MobileHeader'
 import SessionGuard from '@/components/layout/SessionGuard'
 import SecurityNoticeModal from '@/components/layout/SecurityNoticeModal'
+import ClosureNoticeModal from '@/components/layout/ClosureNoticeModal'
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -31,6 +32,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <div className="min-h-screen bg-gray-50">
       <SessionGuard />
       <SecurityNoticeModal />
+      <ClosureNoticeModal />
       <Nav profile={userProfile} />
       <MobileHeader />
 
