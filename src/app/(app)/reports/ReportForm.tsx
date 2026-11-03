@@ -15,6 +15,7 @@ function formatSize(bytes: number) {
 }
 import { useRouter } from 'next/navigation'
 import ReportPreviewModal from './ReportPreviewModal'
+import LmsCheckNoticeModal, { LMS_CHECK_NOTICE_WEEK } from './LmsCheckNoticeModal'
 import {
   ReportMode,
   ReportStatus,
@@ -1040,6 +1041,16 @@ export default function ReportForm({
   const [showPreview, setShowPreview] = useState(false)
   const [dupReportId, setDupReportId] = useState<string | null>(null)
 
+  // ── 11월 1주 리포트를 처음 열었을 때 LMS 최종 확인 안내 (화면당 1회)
+  const [showLmsNotice, setShowLmsNotice] = useState(false)
+  const lmsNoticeShownRef = useRef(false)
+  useEffect(() => {
+    if (weeklyDate === LMS_CHECK_NOTICE_WEEK && !lmsNoticeShownRef.current) {
+      lmsNoticeShownRef.current = true
+      setShowLmsNotice(true)
+    }
+  }, [weeklyDate])
+
   // ── 첨부파일
   const [existingFiles, setExistingFiles] = useState<ExistingFile[]>(initialAttachments)
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([])
@@ -1416,6 +1427,8 @@ export default function ReportForm({
           onClose={() => setShowPreview(false)}
         />
       )}
+
+      {showLmsNotice && <LmsCheckNoticeModal onClose={() => setShowLmsNotice(false)} />}
     </div>
   )
 }

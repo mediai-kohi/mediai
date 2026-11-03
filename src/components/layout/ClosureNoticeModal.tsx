@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 
 // 접속(브라우저 세션)마다 1회 표시
-const STORAGE_KEY = 'eduops_closure_notice_v1_seen'
+const STORAGE_KEY = 'eduops_closure_notice_v3_seen'
 
 export default function ClosureNoticeModal() {
   const [open, setOpen] = useState(false)
@@ -41,18 +41,18 @@ export default function ClosureNoticeModal() {
         </div>
         <div className="space-y-4 px-6 py-5 text-sm leading-6 text-gray-700">
           <p>기관별 교육 운영 종료에 따라 본 시스템을 통한 보고서 제출을 마감합니다.</p>
-          <ol className="list-decimal space-y-3 pl-5">
-            <li>
-              교육 운영이 종료됨에 따라{' '}
-              <strong className="text-gray-900">11월 1주(11.2.~11.9.)</strong>를 마지막으로
-              주간실적 보고 제출을 마감합니다.
-            </li>
-            <li>
-              11월 1주 마지막 주간보고 작성 시{' '}
-              <strong className="text-gray-900">성과지표 실적, 예상 집행금액</strong> 등
-              데이터를 최종 확정하여 입력해 주시기 바랍니다.
-            </li>
-          </ol>
+          <div>
+            <p className="font-medium text-gray-900">11월 1주(11.2.~11.9.) 마지막 주간보고 작성 시 유의사항</p>
+            <ul className="mt-1 list-disc space-y-1 pl-5">
+              <li>
+                mediai 홈페이지(LMS)에서 <strong className="text-gray-900">교육실적 최종 확정</strong>하고,{' '}
+                <strong className="text-gray-900">성과지표 달성 현황</strong> 입력
+              </li>
+              <li>
+                사업비 집행 마감 대비하여 <strong className="text-gray-900">예상 집행금액</strong> 최종 확인
+              </li>
+            </ul>
+          </div>
         </div>
         <div className="flex justify-end border-t border-gray-200 px-6 py-3">
           <button
