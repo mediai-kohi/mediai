@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireEduUser, assertCourseAccess, type EduContext } from '@/lib/edu/access'
+import { validateHourRange } from '@/lib/edu/duration'
 
 async function loadSession(admin: EduContext['admin'], courseId: string, sessionId: string) {
   const { data } = await admin
@@ -32,6 +33,16 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ co
     updates.label = label
   }
   if (body.session_date !== undefined) updates.session_date = body.session_date || null
+
+  if (body.start_hour !== undefined || body.end_hour !== undefined) {
+    const startHour = body.start_hour !== undefined ? body.start_hour : session.start_hour
+    const endHour = body.end_hour !== undefined ? body.end_hour : session.end_hour
+    const hourRange = validateHourRange(startHour, endHour)
+    if ('error' in hourRange) return NextResponse.json({ error: hourRange.error }, { status: 400 })
+    updates.start_hour = hourRange.value.start_hour
+    updates.end_hour = hourRange.value.end_hour
+    updates.duration_minutes = hourRange.value.duration_minutes
+  }
 
   const checkpointKeys = ['checkpoint_start_enabled', 'checkpoint_mid_enabled', 'checkpoint_end_enabled'] as const
   const changingCheckpoints = checkpointKeys.some((k) => body[k] !== undefined)

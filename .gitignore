@@ -39,6 +39,9 @@ yarn-error.log*
 # claude code local settings
 .claude/
 
+# supabase data backups (contains real data, never commit)
+/backups/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
@@ -53,3 +56,6 @@ public/worker-*.js
 .vercel
 
 .vercel
+
+.vercel
+.env*

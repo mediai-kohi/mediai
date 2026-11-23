@@ -9,25 +9,40 @@ interface Question {
   type: 'rating' | 'text'
   required: boolean
   sort_order: number
+  scale_min_label?: string | null
+  scale_max_label?: string | null
 }
 
 type AnswerMap = Record<string, { rating_value?: number; text_value?: string }>
 
-function RatingInput({ value, onChange }: { value?: number; onChange: (v: number) => void }) {
+function RatingInput({ value, onChange, minLabel, maxLabel }: {
+  value?: number
+  onChange: (v: number) => void
+  minLabel?: string | null
+  maxLabel?: string | null
+}) {
   return (
-    <div className="flex gap-2">
-      {[1, 2, 3, 4, 5].map((n) => (
-        <button
-          key={n}
-          type="button"
-          onClick={() => onChange(n)}
-          className={`w-9 h-9 rounded-full text-sm font-medium border transition-colors ${
-            value === n ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-500 border-gray-200'
-          }`}
-        >
-          {n}
-        </button>
-      ))}
+    <div>
+      <div className="flex gap-2">
+        {[1, 2, 3, 4, 5].map((n) => (
+          <button
+            key={n}
+            type="button"
+            onClick={() => onChange(n)}
+            className={`w-9 h-9 rounded-full text-sm font-medium border transition-colors ${
+              value === n ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-500 border-gray-200'
+            }`}
+          >
+            {n}
+          </button>
+        ))}
+      </div>
+      {(minLabel || maxLabel) && (
+        <div className="flex justify-between mt-1 px-0.5">
+          <span className="text-[11px] text-gray-400">{minLabel}</span>
+          <span className="text-[11px] text-gray-400">{maxLabel}</span>
+        </div>
+      )}
     </div>
   )
 }
@@ -36,6 +51,10 @@ export default function SurveyForm({ code }: { code: string }) {
   const [questions, setQuestions] = useState<Question[]>([])
   const [answers, setAnswers] = useState<AnswerMap>({})
   const [eligible, setEligible] = useState<boolean | null>(null)
+  const [attendanceOk, setAttendanceOk] = useState(true)
+  const [windowOpen, setWindowOpen] = useState(true)
+  const [attendancePercent, setAttendancePercent] = useState(0)
+  const [threshold, setThreshold] = useState(80)
   const [alreadySubmitted, setAlreadySubmitted] = useState(false)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
@@ -48,6 +67,10 @@ export default function SurveyForm({ code }: { code: string }) {
       .then((data) => {
         setQuestions(data.questions ?? [])
         setEligible(data.eligible ?? false)
+        setAttendanceOk(data.attendanceOk ?? false)
+        setWindowOpen(data.windowOpen ?? false)
+        setAttendancePercent(data.attendancePercent ?? 0)
+        setThreshold(data.threshold ?? 80)
         setAlreadySubmitted(data.alreadySubmitted ?? false)
         setLoading(false)
       })
@@ -98,9 +121,20 @@ export default function SurveyForm({ code }: { code: string }) {
           <p className="text-sm text-gray-700">
             {done ? '만족도 조사에 응답해주셔서 감사합니다.'
               : alreadySubmitted ? '이미 만족도 조사에 응답하셨습니다.'
-              : '모든 회차의 출석을 완료해야 만족도 조사에 응답할 수 있습니다.'}
+              : !attendanceOk ? `출석률(${attendancePercent}%)이 수료 기준(${threshold}%)에 미달하여 만족도 조사에 응답할 수 없습니다.`
+              : !windowOpen ? '담당자가 아직 만족도 조사를 열지 않았습니다. 잠시 후 다시 시도해주세요.'
+              : '만족도 조사에 응답할 수 없습니다.'}
           </p>
-          <Link href={`/edu/t/${code}`} className="inline-block mt-4 text-sm text-blue-600 font-medium">확인증으로 돌아가기</Link>
+          {done || alreadySubmitted ? (
+            <Link
+              href={`/edu/t/${code}`}
+              className="block w-full mt-4 bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-xl text-sm transition-colors"
+            >
+              수료증 발급받기
+            </Link>
+          ) : (
+            <Link href={`/edu/t/${code}`} className="inline-block mt-4 text-sm text-blue-600 font-medium">확인증으로 돌아가기</Link>
+          )}
         </div>
       </div>
     )
@@ -123,6 +157,8 @@ export default function SurveyForm({ code }: { code: string }) {
                   <RatingInput
                     value={answers[q.id]?.rating_value}
                     onChange={(v) => setAnswers((prev) => ({ ...prev, [q.id]: { rating_value: v } }))}
+                    minLabel={q.scale_min_label}
+                    maxLabel={q.scale_max_label}
                   />
                 ) : (
                   <textarea

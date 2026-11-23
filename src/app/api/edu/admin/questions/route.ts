@@ -24,6 +24,8 @@ export async function POST(request: Request) {
   const label: string = (body.label ?? '').trim()
   const type: string = body.type === 'text' ? 'text' : 'rating'
   const required = body.required !== false
+  const scaleMinLabel: string | null = type === 'rating' ? (String(body.scale_min_label ?? '').trim() || null) : null
+  const scaleMaxLabel: string | null = type === 'rating' ? (String(body.scale_max_label ?? '').trim() || null) : null
 
   if (!label) return NextResponse.json({ error: '문항 내용을 입력해주세요.' }, { status: 400 })
 
@@ -33,7 +35,7 @@ export async function POST(request: Request) {
 
   const { data, error } = await ctx.admin
     .from('edu_survey_questions')
-    .insert({ label, type, required, sort_order: count ?? 0 })
+    .insert({ label, type, required, sort_order: count ?? 0, scale_min_label: scaleMinLabel, scale_max_label: scaleMaxLabel })
     .select()
     .single()
 

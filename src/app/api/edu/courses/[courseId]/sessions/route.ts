@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireEduUser, assertCourseAccess } from '@/lib/edu/access'
+import { validateHourRange } from '@/lib/edu/duration'
 
 // 회차 추가 — 다회차(series) 과정만 가능. 개설자 본인 또는 super_admin만
 export async function POST(request: Request, { params }: { params: Promise<{ courseId: string }> }) {
@@ -26,12 +27,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ cou
     return NextResponse.json({ error: '체크포인트를 최소 1개 이상 선택해야 합니다.' }, { status: 400 })
   }
 
+  const hourRange = validateHourRange(body.start_hour, body.end_hour)
+  if ('error' in hourRange) return NextResponse.json({ error: hourRange.error }, { status: 400 })
+
   const { data, error } = await ctx.admin
     .from('edu_sessions')
     .insert({
       course_id: courseId,
       label,
       session_date: body.session_date || null,
+      start_hour: hourRange.value.start_hour,
+      end_hour: hourRange.value.end_hour,
+      duration_minutes: hourRange.value.duration_minutes,
       checkpoint_start_enabled,
       checkpoint_mid_enabled,
       checkpoint_end_enabled,

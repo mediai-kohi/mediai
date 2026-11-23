@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin'
+import { buildScheduleSummary } from '@/lib/edu/schedule'
 import ApplyCard from './ApplyCard'
 
 export default async function ApplyPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -21,6 +22,12 @@ export default async function ApplyPage({ params }: { params: Promise<{ slug: st
     )
   }
 
+  const { data: courseSessions } = await admin
+    .from('edu_sessions')
+    .select('session_date, duration_minutes')
+    .eq('course_id', course.id)
+  const scheduleSummary = buildScheduleSummary(courseSessions ?? [])
+
   let registrationCount = 0
   if (course.capacity > 0) {
     const { count } = await admin
@@ -37,11 +44,12 @@ export default async function ApplyPage({ params }: { params: Promise<{ slug: st
       <div className="w-full max-w-sm">
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 text-center">
           <h1 className="text-xl font-bold text-gray-900 mb-2">{course.title}</h1>
-          {course.location && <p className="text-sm text-gray-500 mb-1">{course.location}</p>}
+          {scheduleSummary && <p className="text-sm text-gray-500 mb-1">{scheduleSummary}</p>}
           {course.description && <p className="text-sm text-gray-600 mt-3 whitespace-pre-wrap leading-relaxed">{course.description}</p>}
+          {course.location && <p className="text-sm text-gray-500 mt-3">{course.location}</p>}
 
           <div className="mt-6">
-            <ApplyCard slug={slug} isFull={isFull} />
+            <ApplyCard slug={slug} courseId={course.id} isFull={isFull} />
           </div>
         </div>
         <p className="text-xs text-gray-400 text-center mt-4">

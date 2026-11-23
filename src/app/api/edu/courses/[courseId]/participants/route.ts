@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireEduUser, assertCourseAccess } from '@/lib/edu/access'
-import { isRegistrationComplete } from '@/lib/edu/completion'
+import { getAttendancePercent } from '@/lib/edu/completion'
 
 // 참가자 목록 — 코드/신청시각/회차별 체크포인트 현황/수료 여부/만족도 점수. 개설자 본인 또는 super_admin만
 export async function GET(_request: Request, { params }: { params: Promise<{ courseId: string }> }) {
@@ -55,14 +55,16 @@ export async function GET(_request: Request, { params }: { params: Promise<{ cou
     attendanceByReg.set(a.registration_id, arr)
   }
 
+  const threshold = course.completion_threshold_percent ?? 80
   const participants = await Promise.all(regList.map(async (reg) => {
-    const completed = await isRegistrationComplete(ctx.admin, sessionList, reg.id)
+    const attendancePercent = await getAttendancePercent(ctx.admin, sessionList, reg.id)
     const responseSetId = responseSetByReg.get(reg.id)
     return {
       id: reg.id,
       participant_code: reg.participant_code,
       registered_at: reg.registered_at,
-      completed,
+      completed: attendancePercent >= threshold,
+      attendancePercent: Math.round(attendancePercent),
       surveySubmitted: !!responseSetId,
       averageRating: responseSetId ? avgByResponseSet.get(responseSetId) ?? null : null,
       attendance: attendanceByReg.get(reg.id) ?? [],

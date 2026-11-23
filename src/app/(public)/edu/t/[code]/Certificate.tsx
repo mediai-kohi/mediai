@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
-import { QRCodeSVG } from 'qrcode.react'
+import { participantCodeStorageKey } from '@/lib/edu/participantStorage'
 
 interface SessionStatus {
   id: string
@@ -12,11 +12,14 @@ interface SessionStatus {
 }
 
 interface StatusData {
-  course: { title: string; location: string }
+  course: { id: string; title: string; location: string }
   registeredAt: string
   sessions: SessionStatus[]
   attendance: { session_id: string; checkpoint: string; checked_at: string }[]
   completed: boolean
+  attendancePercent: number
+  completionThreshold: number
+  surveyWindowOpen: boolean
   surveySubmitted: boolean
 }
 
@@ -30,12 +33,12 @@ export default function Certificate({ code }: { code: string }) {
     fetch(`/api/edu/status/${code}`)
       .then(async (res) => {
         if (!res.ok) { setNotFound(true); return }
-        setData(await res.json())
+        const json: StatusData = await res.json()
+        setData(json)
+        localStorage.setItem(participantCodeStorageKey(json.course.id), code)
       })
       .catch(() => setNotFound(true))
   }, [code])
-
-  const pageUrl = typeof window !== 'undefined' ? window.location.href : ''
 
   if (notFound) {
     return (
@@ -54,17 +57,17 @@ export default function Certificate({ code }: { code: string }) {
   const hasAttended = (sessionId: string, checkpoint: string) =>
     data.attendance.some((a) => a.session_id === sessionId && a.checkpoint === checkpoint)
 
-  return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4 py-12">
-      <div className="w-full max-w-sm">
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 text-center">
-          <p className="text-xs text-gray-400 mb-4">참가 확인증</p>
+  const title = data.completed ? '수료증' : '참가 확인증'
 
-          <div className="p-3 bg-white rounded-lg border border-gray-100 inline-block">
-            <QRCodeSVG value={pageUrl} size={160} />
-          </div>
-          <p className="mt-3 text-lg font-mono font-bold text-gray-900 tracking-widest">{code}</p>
-          <p className="text-xs text-gray-400 mt-1">이 화면을 저장하거나 즐겨찾기 해주세요. 이 코드가 참여 확인의 유일한 수단입니다.</p>
+  return (
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4 py-12 print:bg-white print:py-0">
+      <div className="w-full max-w-sm">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 text-center print:shadow-none print:border-none">
+          <p className="text-xs text-gray-400 mb-4 print:hidden">{title}</p>
+          <h1 className="hidden print:block text-lg font-bold text-gray-900 mb-4">{title}</h1>
+
+          <p className="text-lg font-mono font-bold text-gray-900 tracking-widest">{code}</p>
+          <p className="text-xs text-gray-400 mt-1 print:hidden">이 화면을 저장하거나 즐겨찾기 해주세요. 이 코드가 참여 확인의 유일한 수단입니다.</p>
 
           <div className="mt-5 pt-5 border-t border-gray-100 text-left">
             <h2 className="text-sm font-semibold text-gray-900">{data.course.title}</h2>
@@ -75,7 +78,10 @@ export default function Certificate({ code }: { code: string }) {
                 const cps = (Object.keys(s.checkpoints) as ('start' | 'mid' | 'end')[]).filter((cp) => s.checkpoints[cp])
                 return (
                   <div key={s.id} className="bg-gray-50 rounded-lg px-3 py-2">
-                    <p className="text-xs font-medium text-gray-700">{s.label}</p>
+                    <p className="text-xs font-medium text-gray-700">
+                      {s.label}
+                      {s.session_date && <span className="text-gray-400 font-normal"> · {s.session_date}</span>}
+                    </p>
                     <div className="flex gap-1.5 mt-1">
                       {cps.map((cp) => (
                         <span
@@ -95,21 +101,34 @@ export default function Certificate({ code }: { code: string }) {
           </div>
 
           <div className="mt-5 pt-5 border-t border-gray-100">
-            {data.completed ? (
-              data.surveySubmitted ? (
-                <p className="text-sm text-green-600 font-medium">수료 완료 · 만족도 조사 제출됨</p>
-              ) : (
-                <Link
-                  href={`/edu/t/${code}/survey`}
-                  className="block w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-xl text-sm transition-colors"
-                >
-                  만족도 조사 응답하기
-                </Link>
-              )
+            <p className="text-xs text-gray-500 mb-3">
+              출석률 {data.attendancePercent}% (수료 기준 {data.completionThreshold}% 이상)
+              {data.completed && <span className="text-green-600 font-medium"> · 수료 기준 충족</span>}
+            </p>
+            {data.surveySubmitted ? (
+              <p className="text-sm text-green-600 font-medium">
+                {data.completed ? '수료 완료 · ' : ''}만족도 조사 제출됨
+              </p>
+            ) : data.completed && data.surveyWindowOpen ? (
+              <Link
+                href={`/edu/t/${code}/survey`}
+                className="block w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-xl text-sm transition-colors"
+              >
+                만족도 조사 응답하기
+              </Link>
+            ) : data.completed ? (
+              <p className="text-sm text-gray-400">수료 기준을 충족했습니다. 담당자가 만족도 조사를 열면 응답할 수 있습니다.</p>
             ) : (
-              <p className="text-sm text-gray-400">모든 회차 출석을 완료하면 만족도 조사에 응답할 수 있습니다.</p>
+              <p className="text-sm text-gray-400">아직 수료 기준({data.completionThreshold}%)에 도달하지 못했습니다.</p>
             )}
           </div>
+
+          <button
+            onClick={() => window.print()}
+            className="mt-5 w-full text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 py-2.5 rounded-lg print:hidden"
+          >
+            다운로드 ({title})
+          </button>
         </div>
       </div>
     </div>

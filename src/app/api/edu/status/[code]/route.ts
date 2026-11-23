@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { isRegistrationComplete } from '@/lib/edu/completion'
+import { getAttendancePercent } from '@/lib/edu/completion'
 
 // 참가자 확인증 화면용 상태 조회 — 로그인 불필요, participant_code로만 검증
 export async function GET(_request: Request, { params }: { params: Promise<{ code: string }> }) {
@@ -16,18 +16,29 @@ export async function GET(_request: Request, { params }: { params: Promise<{ cod
   if (!registration) return NextResponse.json({ error: '존재하지 않는 참가자 코드입니다.' }, { status: 404 })
 
   const [{ data: course }, { data: sessions }, { data: attendance }] = await Promise.all([
-    admin.from('edu_courses').select('id, title, location').eq('id', registration.course_id).single(),
+    admin.from('edu_courses').select('id, title, location, completion_threshold_percent').eq('id', registration.course_id).single(),
     admin.from('edu_sessions').select('*').eq('course_id', registration.course_id).order('created_at', { ascending: true }),
     admin.from('edu_attendance').select('session_id, checkpoint, checked_at').eq('registration_id', registration.id),
   ])
 
   const sessionList = sessions ?? []
-  const completed = await isRegistrationComplete(admin, sessionList, registration.id)
+  const threshold = course?.completion_threshold_percent ?? 80
+  const attendancePercent = await getAttendancePercent(admin, sessionList, registration.id)
+  const completed = attendancePercent >= threshold
 
   const { data: surveySubmitted } = await admin
     .from('edu_survey_response_sets')
     .select('id')
     .eq('registration_id', registration.id)
+    .maybeSingle()
+
+  const { data: surveyWindow } = await admin
+    .from('edu_survey_windows')
+    .select('id')
+    .eq('course_id', registration.course_id)
+    .is('closed_at', null)
+    .gt('expires_at', new Date().toISOString())
+    .limit(1)
     .maybeSingle()
 
   return NextResponse.json({
@@ -45,6 +56,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ cod
     })),
     attendance: attendance ?? [],
     completed,
+    attendancePercent: Math.round(attendancePercent),
+    completionThreshold: threshold,
+    surveyWindowOpen: !!surveyWindow,
     surveySubmitted: !!surveySubmitted,
   })
 }

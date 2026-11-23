@@ -1,10 +1,14 @@
 import { NextResponse } from 'next/server'
 import { requireEduUser } from '@/lib/edu/access'
 import { generateCourseSlug } from '@/lib/edu/codes'
+import { buildScheduleSummary } from '@/lib/edu/schedule'
+import { validateHourRange } from '@/lib/edu/duration'
 
 interface SessionInput {
   label?: string
   session_date?: string | null
+  start_hour?: number | string
+  end_hour?: number | string
   checkpoint_start_enabled?: boolean
   checkpoint_mid_enabled?: boolean
   checkpoint_end_enabled?: boolean
@@ -20,10 +24,16 @@ function normalizeSession(input: SessionInput, index: number) {
     return { error: `${label}: 체크포인트를 최소 1개 이상 선택해야 합니다.` }
   }
 
+  const hourRange = validateHourRange(input.start_hour, input.end_hour)
+  if ('error' in hourRange) return { error: `${label}: ${hourRange.error}` }
+
   return {
     value: {
       label,
       session_date: input.session_date || null,
+      start_hour: hourRange.value.start_hour,
+      end_hour: hourRange.value.end_hour,
+      duration_minutes: hourRange.value.duration_minutes,
       checkpoint_start_enabled,
       checkpoint_mid_enabled,
       checkpoint_end_enabled,
@@ -52,6 +62,7 @@ export async function GET(request: Request) {
   const courseIds = (courses ?? []).map((c) => c.id)
   const registrationCounts: Record<string, number> = {}
   const creatorLabels: Record<string, string> = {}
+  const scheduleSummaries: Record<string, string | null> = {}
 
   if (courseIds.length > 0) {
     const { data: regs } = await ctx.admin
@@ -60,6 +71,21 @@ export async function GET(request: Request) {
       .in('course_id', courseIds)
     for (const r of regs ?? []) {
       registrationCounts[r.course_id] = (registrationCounts[r.course_id] ?? 0) + 1
+    }
+
+    // 과정 목록에 "교육일정 · 회차수 · 총 교육시간"을 노출한다.
+    const { data: allSessions } = await ctx.admin
+      .from('edu_sessions')
+      .select('course_id, session_date, duration_minutes')
+      .in('course_id', courseIds)
+    const sessionsByCourse = new Map<string, { session_date: string | null; duration_minutes: number }[]>()
+    for (const s of allSessions ?? []) {
+      const arr = sessionsByCourse.get(s.course_id) ?? []
+      arr.push({ session_date: s.session_date, duration_minutes: s.duration_minutes })
+      sessionsByCourse.set(s.course_id, arr)
+    }
+    for (const [courseId, sessionsForCourse] of sessionsByCourse) {
+      scheduleSummaries[courseId] = buildScheduleSummary(sessionsForCourse)
     }
 
     if (wantsAll) {
@@ -78,6 +104,7 @@ export async function GET(request: Request) {
     ...c,
     registration_count: registrationCounts[c.id] ?? 0,
     creator_label: wantsAll ? (creatorLabels[c.created_by] ?? '-') : undefined,
+    schedule_summary: scheduleSummaries[c.id] ?? null,
   }))
 
   return NextResponse.json({ courses: result, viewingAll: wantsAll })
@@ -98,6 +125,11 @@ export async function POST(request: Request) {
   const description: string = (body.description ?? '').trim()
   const capacityRaw = body.capacity
   const capacity = Number.isFinite(Number(capacityRaw)) && Number(capacityRaw) > 0 ? Math.floor(Number(capacityRaw)) : 0
+
+  const thresholdRaw = body.completion_threshold_percent
+  const completionThresholdPercent = Number.isInteger(Number(thresholdRaw)) && Number(thresholdRaw) >= 1 && Number(thresholdRaw) <= 100
+    ? Number(thresholdRaw)
+    : 80
 
   const sessionInputs: SessionInput[] = Array.isArray(body.sessions) ? body.sessions : []
   if (sessionInputs.length === 0) {
@@ -131,6 +163,7 @@ export async function POST(request: Request) {
       description,
       capacity,
       course_type: courseType,
+      completion_threshold_percent: completionThresholdPercent,
       created_by: ctx.user.id,
     })
     .select()

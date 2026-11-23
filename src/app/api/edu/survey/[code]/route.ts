@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { isRegistrationComplete } from '@/lib/edu/completion'
+import { getAttendancePercent } from '@/lib/edu/completion'
 
 async function loadRegistration(admin: ReturnType<typeof createAdminClient>, code: string) {
   const { data: registration } = await admin
@@ -11,6 +11,33 @@ async function loadRegistration(admin: ReturnType<typeof createAdminClient>, cod
   return registration
 }
 
+async function loadEligibility(admin: ReturnType<typeof createAdminClient>, registration: { id: string; course_id: string }) {
+  const [{ data: course }, { data: sessions }] = await Promise.all([
+    admin.from('edu_courses').select('completion_threshold_percent').eq('id', registration.course_id).single(),
+    admin.from('edu_sessions').select('id, duration_minutes, checkpoint_start_enabled, checkpoint_mid_enabled, checkpoint_end_enabled').eq('course_id', registration.course_id),
+  ])
+
+  const threshold = course?.completion_threshold_percent ?? 80
+  const attendancePercent = await getAttendancePercent(admin, sessions ?? [], registration.id)
+  const attendanceOk = attendancePercent >= threshold
+
+  const { data: surveyWindow } = await admin
+    .from('edu_survey_windows')
+    .select('id')
+    .eq('course_id', registration.course_id)
+    .is('closed_at', null)
+    .gt('expires_at', new Date().toISOString())
+    .limit(1)
+    .maybeSingle()
+
+  return {
+    threshold,
+    attendancePercent: Math.round(attendancePercent),
+    attendanceOk,
+    windowOpen: !!surveyWindow,
+  }
+}
+
 // 만족도 문항 조회 — 참가자 화면용 (전역 활성 문항 + 제출 여부)
 export async function GET(_request: Request, { params }: { params: Promise<{ code: string }> }) {
   const { code } = await params
@@ -19,11 +46,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ cod
   const registration = await loadRegistration(admin, code)
   if (!registration) return NextResponse.json({ error: '존재하지 않는 참가자 코드입니다.' }, { status: 404 })
 
-  const { data: sessions } = await admin
-    .from('edu_sessions')
-    .select('id, checkpoint_start_enabled, checkpoint_mid_enabled, checkpoint_end_enabled')
-    .eq('course_id', registration.course_id)
-  const completed = await isRegistrationComplete(admin, sessions ?? [], registration.id)
+  const { threshold, attendancePercent, attendanceOk, windowOpen } = await loadEligibility(admin, registration)
 
   const { data: existing } = await admin
     .from('edu_survey_response_sets')
@@ -33,18 +56,22 @@ export async function GET(_request: Request, { params }: { params: Promise<{ cod
 
   const { data: questions } = await admin
     .from('edu_survey_questions')
-    .select('id, label, type, required, sort_order')
+    .select('id, label, type, required, sort_order, scale_min_label, scale_max_label')
     .eq('is_active', true)
     .order('sort_order', { ascending: true })
 
   return NextResponse.json({
     questions: questions ?? [],
-    eligible: completed,
+    eligible: attendanceOk && windowOpen,
+    attendanceOk,
+    windowOpen,
+    attendancePercent,
+    threshold,
     alreadySubmitted: !!existing,
   })
 }
 
-// 만족도 조사 제출 — 참가자당 과정별 1회만, 수료(모든 체크포인트 완료) 후에만 가능
+// 만족도 조사 제출 — 참가자당 과정별 1회만. 출석률이 수료 기준 이상이고, 관리자가 설문을 오픈했을 때만 가능
 export async function POST(request: Request, { params }: { params: Promise<{ code: string }> }) {
   const { code } = await params
   const admin = createAdminClient()
@@ -52,12 +79,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ cod
   const registration = await loadRegistration(admin, code)
   if (!registration) return NextResponse.json({ error: '존재하지 않는 참가자 코드입니다.' }, { status: 404 })
 
-  const { data: sessions } = await admin
-    .from('edu_sessions')
-    .select('id, checkpoint_start_enabled, checkpoint_mid_enabled, checkpoint_end_enabled')
-    .eq('course_id', registration.course_id)
-  const completed = await isRegistrationComplete(admin, sessions ?? [], registration.id)
-  if (!completed) return NextResponse.json({ error: '모든 회차의 출석을 완료해야 만족도 조사에 응답할 수 있습니다.' }, { status: 400 })
+  const { threshold, attendancePercent, attendanceOk, windowOpen } = await loadEligibility(admin, registration)
+  if (!attendanceOk) {
+    return NextResponse.json({ error: `출석률(${attendancePercent}%)이 수료 기준(${threshold}%)에 미달하여 만족도 조사에 응답할 수 없습니다.` }, { status: 400 })
+  }
+  if (!windowOpen) {
+    return NextResponse.json({ error: '담당자가 아직 만족도 조사를 열지 않았습니다.' }, { status: 400 })
+  }
 
   const { data: existing } = await admin
     .from('edu_survey_response_sets')

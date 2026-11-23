@@ -14,6 +14,7 @@ interface Course {
   created_at: string
   registration_count: number
   creator_label?: string
+  schedule_summary: string | null
 }
 
 export default function CourseList({ isSuperAdmin }: { isSuperAdmin: boolean }) {
@@ -82,8 +83,7 @@ export default function CourseList({ isSuperAdmin }: { isSuperAdmin: boolean }) 
               </div>
               <p className="mt-2 text-sm font-medium text-gray-900 line-clamp-1">{course.title}</p>
               <p className="mt-1 text-xs text-gray-400">
-                {course.location || '장소 미정'}
-                {course.creator_label ? ` · ${course.creator_label}` : ''}
+                {[course.schedule_summary, course.creator_label, course.location || '장소 미정'].filter(Boolean).join(' · ')}
               </p>
             </Link>
           ))

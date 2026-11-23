@@ -2,9 +2,11 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import ApplyQr from './ApplyQr'
 import SessionManager from './SessionManager'
-import CheckinScanner from './CheckinScanner'
+import CheckinQrPanel from './CheckinQrPanel'
+import SurveyQrPanel from './SurveyQrPanel'
 import ParticipantList from './ParticipantList'
 import CourseDashboard from './CourseDashboard'
 
@@ -12,6 +14,9 @@ export interface EduSession {
   id: string
   label: string
   session_date: string | null
+  duration_minutes: number
+  start_hour: number | null
+  end_hour: number | null
   checkpoint_start_enabled: boolean
   checkpoint_mid_enabled: boolean
   checkpoint_end_enabled: boolean
@@ -25,27 +30,47 @@ export interface EduCourse {
   capacity: number
   description: string
   course_type: 'single' | 'series'
+  completion_threshold_percent: number
   created_by: string
   created_at: string
 }
 
-type Tab = 'overview' | 'sessions' | 'checkin' | 'participants' | 'dashboard'
+type Tab = 'overview' | 'sessions' | 'checkin' | 'survey' | 'participants' | 'dashboard'
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'overview', label: '개요' },
   { key: 'sessions', label: '회차 관리' },
   { key: 'checkin', label: '체크인' },
+  { key: 'survey', label: '만족도 설문' },
   { key: 'participants', label: '참가자' },
   { key: 'dashboard', label: '대시보드' },
 ]
+const TAB_KEYS = TABS.map((t) => t.key)
 
 export default function CourseDetail({ courseId }: { courseId: string }) {
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+
   const [course, setCourse] = useState<EduCourse | null>(null)
   const [sessions, setSessions] = useState<EduSession[]>([])
   const [registrationCount, setRegistrationCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [tab, setTab] = useState<Tab>('overview')
+  // 탭을 URL 쿼리(?tab=)에 저장해, 모바일 브라우저가 백그라운드에서 탭을 버리고 새로고침하거나
+  // dev 서버 재빌드 등으로 페이지가 리로드되어도 체크인 QR 화면이 개요로 튕기지 않도록 한다.
+  const [tab, setTabState] = useState<Tab>(() => {
+    const fromUrl = searchParams.get('tab') as Tab | null
+    return fromUrl && TAB_KEYS.includes(fromUrl) ? fromUrl : 'overview'
+  })
+
+  const setTab = useCallback((key: Tab) => {
+    setTabState(key)
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('tab', key)
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname, router])
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/edu/courses/${courseId}`)
@@ -117,7 +142,8 @@ export default function CourseDetail({ courseId }: { courseId: string }) {
       <div className="px-4 mt-4">
         {tab === 'overview' && <ApplyQr course={course} onUpdated={load} />}
         {tab === 'sessions' && <SessionManager courseId={courseId} courseType={course.course_type} sessions={sessions} onChanged={load} />}
-        {tab === 'checkin' && <CheckinScanner courseId={courseId} sessions={sessions} />}
+        {tab === 'checkin' && <CheckinQrPanel courseId={courseId} sessions={sessions} />}
+        {tab === 'survey' && <SurveyQrPanel courseId={courseId} />}
         {tab === 'participants' && <ParticipantList courseId={courseId} />}
         {tab === 'dashboard' && <CourseDashboard courseId={courseId} />}
       </div>

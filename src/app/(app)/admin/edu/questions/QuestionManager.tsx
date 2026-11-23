@@ -9,6 +9,34 @@ interface Question {
   required: boolean
   sort_order: number
   is_active: boolean
+  scale_min_label?: string | null
+  scale_max_label?: string | null
+}
+
+function ScaleLabelInputs({ minLabel, maxLabel, onMinChange, onMaxChange }: {
+  minLabel: string
+  maxLabel: string
+  onMinChange: (v: string) => void
+  onMaxChange: (v: string) => void
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-xs text-gray-400 flex-shrink-0">1점</span>
+      <input
+        value={minLabel}
+        onChange={(e) => onMinChange(e.target.value)}
+        placeholder="예: 매우 그렇지 않다"
+        className="flex-1 min-w-0 px-2.5 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs"
+      />
+      <span className="text-xs text-gray-400 flex-shrink-0">5점</span>
+      <input
+        value={maxLabel}
+        onChange={(e) => onMaxChange(e.target.value)}
+        placeholder="예: 매우 그렇다"
+        className="flex-1 min-w-0 px-2.5 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs"
+      />
+    </div>
+  )
 }
 
 function QuestionEditForm({ question, onSaved, onCancel }: {
@@ -19,6 +47,8 @@ function QuestionEditForm({ question, onSaved, onCancel }: {
   const [label, setLabel] = useState(question.label)
   const [type, setType] = useState<'rating' | 'text'>(question.type)
   const [required, setRequired] = useState(question.required)
+  const [scaleMinLabel, setScaleMinLabel] = useState(question.scale_min_label ?? '')
+  const [scaleMaxLabel, setScaleMaxLabel] = useState(question.scale_max_label ?? '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -30,7 +60,13 @@ function QuestionEditForm({ question, onSaved, onCancel }: {
     }
     setSaving(true)
     setError('')
-    await onSaved({ label: trimmed, type, required })
+    await onSaved({
+      label: trimmed,
+      type,
+      required,
+      scale_min_label: type === 'rating' ? scaleMinLabel.trim() || null : null,
+      scale_max_label: type === 'rating' ? scaleMaxLabel.trim() || null : null,
+    })
     setSaving(false)
   }
 
@@ -56,6 +92,14 @@ function QuestionEditForm({ question, onSaved, onCancel }: {
           필수
         </label>
       </div>
+      {type === 'rating' && (
+        <ScaleLabelInputs
+          minLabel={scaleMinLabel}
+          maxLabel={scaleMaxLabel}
+          onMinChange={setScaleMinLabel}
+          onMaxChange={setScaleMaxLabel}
+        />
+      )}
       {error && <p className="text-xs text-red-600">{error}</p>}
       <div className="flex gap-2">
         <button onClick={handleSave} disabled={saving} className="text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 px-3 py-1.5 rounded-lg">
@@ -73,6 +117,8 @@ export default function QuestionManager() {
   const [newLabel, setNewLabel] = useState('')
   const [newType, setNewType] = useState<'rating' | 'text'>('rating')
   const [newRequired, setNewRequired] = useState(true)
+  const [newScaleMinLabel, setNewScaleMinLabel] = useState('')
+  const [newScaleMaxLabel, setNewScaleMaxLabel] = useState('')
   const [adding, setAdding] = useState(false)
   const [error, setError] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -103,7 +149,13 @@ export default function QuestionManager() {
     const res = await fetch('/api/edu/admin/questions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ label, type: newType, required: newRequired }),
+      body: JSON.stringify({
+        label,
+        type: newType,
+        required: newRequired,
+        scale_min_label: newType === 'rating' ? newScaleMinLabel.trim() || null : null,
+        scale_max_label: newType === 'rating' ? newScaleMaxLabel.trim() || null : null,
+      }),
     })
     setAdding(false)
     if (!res.ok) {
@@ -112,6 +164,8 @@ export default function QuestionManager() {
       return
     }
     setNewLabel('')
+    setNewScaleMinLabel('')
+    setNewScaleMaxLabel('')
     load()
   }
 
@@ -194,6 +248,11 @@ export default function QuestionManager() {
                       <span className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 text-[10px]">{q.type === 'rating' ? '평점형' : '서술형'}</span>
                       {q.required && <span className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-600 text-[10px]">필수</span>}
                     </div>
+                    {q.type === 'rating' && (q.scale_min_label || q.scale_max_label) && (
+                      <p className="text-[11px] text-gray-400 mt-1">
+                        1점: {q.scale_min_label || '—'} · 5점: {q.scale_max_label || '—'}
+                      </p>
+                    )}
                   </div>
                   <div className="flex gap-2 flex-shrink-0">
                     <button onClick={() => setEditingId(q.id)} className="text-xs font-medium text-blue-600">수정</button>
@@ -229,6 +288,14 @@ export default function QuestionManager() {
             필수
           </label>
         </div>
+        {newType === 'rating' && (
+          <ScaleLabelInputs
+            minLabel={newScaleMinLabel}
+            maxLabel={newScaleMaxLabel}
+            onMinChange={setNewScaleMinLabel}
+            onMaxChange={setNewScaleMaxLabel}
+          />
+        )}
         {error && <p className="text-xs text-red-600">{error}</p>}
         <button onClick={handleAdd} disabled={adding || !newLabel.trim()}
           className="w-full text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 py-2 rounded-lg">

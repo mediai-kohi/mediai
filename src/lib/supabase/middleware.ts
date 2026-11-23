@@ -68,10 +68,16 @@ export async function updateSession(request: NextRequest, extraHeaders?: Record<
 
   const { pathname } = request.nextUrl
 
-  // 교육 참가자 화면(로그인 없음, 참가자 코드로만 검증) — /edu/apply(신청), /edu/t(확인증·만족도조사)
+  // 교육 참가자 화면(로그인 없음, 참가자 코드로만 검증) — /edu/apply(신청), /edu/t(확인증·만족도조사),
+  // /edu/c(셀프 체크인 QR), /edu/s(만족도 설문 오픈 QR)
   // 세션 유무·role과 무관하게 완전히 공개된 경로이므로 아래의 로그인/role 가드를 전부 건너뛴다
   // (로그인한 채로 QR을 스캔하는 confined role 사용자가 이 페이지에서 튕겨나가지 않도록)
-  if (pathname.startsWith('/edu/apply') || pathname.startsWith('/edu/t')) {
+  if (
+    pathname.startsWith('/edu/apply') ||
+    pathname.startsWith('/edu/t') ||
+    pathname.startsWith('/edu/c') ||
+    pathname.startsWith('/edu/s')
+  ) {
     return supabaseResponse
   }
 

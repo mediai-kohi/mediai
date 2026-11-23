@@ -28,6 +28,7 @@ export default function ParticipantList({ courseId }: { courseId: string }) {
   const [sessions, setSessions] = useState<SessionRef[]>([])
   const [participants, setParticipants] = useState<Participant[]>([])
   const [loading, setLoading] = useState(true)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   useEffect(() => {
     fetch(`/api/edu/courses/${courseId}/participants`)
@@ -39,6 +40,19 @@ export default function ParticipantList({ courseId }: { courseId: string }) {
       })
   }, [courseId])
 
+  const handleDelete = async (participant: Participant) => {
+    if (!confirm(`참가자 ${participant.participant_code}를 삭제하시겠습니까? 출석/만족도 응답 기록도 함께 삭제되며 되돌릴 수 없습니다.`)) return
+    setDeletingId(participant.id)
+    const res = await fetch(`/api/edu/courses/${courseId}/participants/${participant.id}`, { method: 'DELETE' })
+    setDeletingId(null)
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      alert(data.error ?? '처리 중 오류가 발생했습니다.')
+      return
+    }
+    setParticipants((prev) => prev.filter((p) => p.id !== participant.id))
+  }
+
   if (loading) return <div className="text-sm text-gray-400 py-8 text-center">불러오는 중...</div>
   if (participants.length === 0) return <p className="text-sm text-gray-500 py-8 text-center">아직 신청자가 없습니다.</p>
 
@@ -47,9 +61,11 @@ export default function ParticipantList({ courseId }: { courseId: string }) {
 
   return (
     <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
-      <table className="w-full text-sm min-w-[600px]">
+      <p className="px-3 pt-3 text-xs text-gray-400">총 {participants.length}명</p>
+      <table className="w-full text-sm min-w-[640px]">
         <thead>
           <tr className="border-b border-gray-100 text-left text-xs text-gray-400">
+            <th className="px-3 py-2 font-medium">연번</th>
             <th className="px-3 py-2 font-medium">코드</th>
             <th className="px-3 py-2 font-medium">신청시각</th>
             {sessions.map((s) => (
@@ -57,11 +73,13 @@ export default function ParticipantList({ courseId }: { courseId: string }) {
             ))}
             <th className="px-3 py-2 font-medium">수료</th>
             <th className="px-3 py-2 font-medium">만족도</th>
+            <th className="px-3 py-2 font-medium"></th>
           </tr>
         </thead>
         <tbody>
-          {participants.map((p) => (
+          {participants.map((p, i) => (
             <tr key={p.id} className="border-b border-gray-50 last:border-0">
+              <td className="px-3 py-2 text-gray-400">{i + 1}</td>
               <td className="px-3 py-2 font-mono text-gray-700">{p.participant_code}</td>
               <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{formatDateTime(p.registered_at)}</td>
               {sessions.map((s) => {
@@ -87,6 +105,15 @@ export default function ParticipantList({ courseId }: { courseId: string }) {
               </td>
               <td className="px-3 py-2 text-gray-700">
                 {p.surveySubmitted ? (p.averageRating != null ? p.averageRating.toFixed(1) : '제출') : '-'}
+              </td>
+              <td className="px-3 py-2 text-right">
+                <button
+                  onClick={() => handleDelete(p)}
+                  disabled={deletingId === p.id}
+                  className="text-xs font-medium text-red-500 hover:text-red-600 disabled:opacity-50"
+                >
+                  {deletingId === p.id ? '삭제 중...' : '삭제'}
+                </button>
               </td>
             </tr>
           ))}

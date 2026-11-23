@@ -18,6 +18,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ qu
   if (body.type !== undefined) updates.type = body.type === 'text' ? 'text' : 'rating'
   if (body.required !== undefined) updates.required = !!body.required
   if (body.is_active !== undefined) updates.is_active = !!body.is_active
+  if (body.scale_min_label !== undefined) updates.scale_min_label = String(body.scale_min_label).trim() || null
+  if (body.scale_max_label !== undefined) updates.scale_max_label = String(body.scale_max_label).trim() || null
 
   if (Object.keys(updates).length === 0) {
     return NextResponse.json({ error: '변경할 내용이 없습니다.' }, { status: 400 })

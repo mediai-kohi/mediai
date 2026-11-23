@@ -2,10 +2,13 @@
 
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
+import HourRangeSelect from '../HourRangeSelect'
 
 interface SessionDraft {
   label: string
   session_date: string
+  startHour: number
+  endHour: number
   checkpoint_start_enabled: boolean
   checkpoint_mid_enabled: boolean
   checkpoint_end_enabled: boolean
@@ -15,6 +18,8 @@ function newSessionDraft(index: number): SessionDraft {
   return {
     label: `${index + 1}회차`,
     session_date: '',
+    startHour: 9,
+    endHour: 10,
     checkpoint_start_enabled: true,
     checkpoint_mid_enabled: false,
     checkpoint_end_enabled: true,
@@ -49,6 +54,7 @@ export default function NewCourseForm() {
   const [location, setLocation] = useState('')
   const [capacity, setCapacity] = useState('')
   const [description, setDescription] = useState('')
+  const [completionThreshold, setCompletionThreshold] = useState('80')
   const [courseType, setCourseType] = useState<'single' | 'series'>('single')
   const [sessions, setSessions] = useState<SessionDraft[]>([newSessionDraft(0)])
   const [submitting, setSubmitting] = useState(false)
@@ -77,6 +83,10 @@ export default function NewCourseForm() {
         setError(`${s.label}: 체크포인트를 최소 1개 이상 선택해주세요.`)
         return
       }
+      if (s.endHour <= s.startHour) {
+        setError(`${s.label}: 종료 시각은 시작 시각보다 늦어야 합니다.`)
+        return
+      }
     }
 
     setSubmitting(true)
@@ -89,8 +99,9 @@ export default function NewCourseForm() {
           location,
           description,
           capacity: capacity === '' ? 0 : Number(capacity),
+          completion_threshold_percent: completionThreshold === '' ? 80 : Number(completionThreshold),
           course_type: courseType,
-          sessions,
+          sessions: sessions.map((s) => ({ ...s, start_hour: s.startHour, end_hour: s.endHour })),
         }),
       })
       const data = await res.json()
@@ -144,6 +155,19 @@ export default function NewCourseForm() {
         </div>
 
         <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">수료 기준 (%)</label>
+          <input
+            type="number"
+            min={1}
+            max={100}
+            value={completionThreshold}
+            onChange={(e) => setCompletionThreshold(e.target.value)}
+            className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <p className="text-xs text-gray-400 mt-1">전체 교육시간 대비 출석 인정 시간이 이 비율 이상이면 수료로 처리됩니다.</p>
+        </div>
+
+        <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">설명</label>
           <textarea
             value={description}
@@ -188,7 +212,7 @@ export default function NewCourseForm() {
           <div className="space-y-3">
             {sessions.map((session, index) => (
               <div key={index} className="bg-white border border-gray-200 rounded-xl p-3">
-                {courseType === 'series' && (
+                {courseType === 'series' ? (
                   <div className="flex items-center gap-2 mb-2">
                     <input
                       type="text"
@@ -211,7 +235,25 @@ export default function NewCourseForm() {
                       </button>
                     )}
                   </div>
+                ) : (
+                  <div className="mb-2">
+                    <label className="block text-xs text-gray-400 mb-1">교육일정</label>
+                    <input
+                      type="date"
+                      value={session.session_date}
+                      onChange={(e) => updateSession(index, { session_date: e.target.value })}
+                      className="w-full px-2.5 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-sm"
+                    />
+                  </div>
                 )}
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1">참여시간</label>
+                  <HourRangeSelect
+                    startHour={session.startHour}
+                    endHour={session.endHour}
+                    onChange={({ startHour, endHour }) => updateSession(index, { startHour, endHour })}
+                  />
+                </div>
                 <CheckpointCheckboxes session={session} onChange={(patch) => updateSession(index, patch)} />
               </div>
             ))}

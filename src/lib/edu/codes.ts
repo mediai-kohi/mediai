@@ -14,3 +14,7 @@ export function generateParticipantCode(length = 6) {
 export function generateCourseSlug() {
   return randomBytes(9).toString('base64url')
 }
+
+export function generateCheckinToken() {
+  return randomBytes(12).toString('base64url')
+}

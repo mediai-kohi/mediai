@@ -2,6 +2,15 @@
 
 import { useState } from 'react'
 import type { EduSession } from './CourseDetail'
+import { formatHourRange, formatHours, minutesToHours } from '@/lib/edu/duration'
+import HourRangeSelect from '../HourRangeSelect'
+
+// 시작/종료 시각이 아직 없는 기존 회차(마이그레이션 이전 데이터)를 편집할 때 보여줄 기본값을
+// 기존 duration_minutes에서 역산한다 — 09시부터 시작한다고 가정.
+function fallbackHourRange(durationMinutes: number) {
+  const hours = Math.max(1, Math.min(15, Math.round(minutesToHours(durationMinutes))))
+  return { startHour: 9, endHour: 9 + hours }
+}
 
 const CHECKPOINT_FIELDS = [
   ['checkpoint_start_enabled', '시작'],
@@ -22,6 +31,11 @@ function CheckpointBadges({ session }: { session: EduSession }) {
 function SessionEditForm({ courseId, session, onDone }: { courseId: string; session: EduSession; onDone: () => void }) {
   const [label, setLabel] = useState(session.label)
   const [date, setDate] = useState(session.session_date ?? '')
+  const [hourRange, setHourRange] = useState(() =>
+    session.start_hour != null && session.end_hour != null
+      ? { startHour: session.start_hour, endHour: session.end_hour }
+      : fallbackHourRange(session.duration_minutes)
+  )
   const [checkpoints, setCheckpoints] = useState({
     checkpoint_start_enabled: session.checkpoint_start_enabled,
     checkpoint_mid_enabled: session.checkpoint_mid_enabled,
@@ -35,12 +49,20 @@ function SessionEditForm({ courseId, session, onDone }: { courseId: string; sess
       setError('체크포인트를 최소 1개 이상 선택해주세요.')
       return
     }
+    if (hourRange.endHour <= hourRange.startHour) {
+      setError('종료 시각은 시작 시각보다 늦어야 합니다.')
+      return
+    }
     setSaving(true)
     setError('')
     const res = await fetch(`/api/edu/courses/${courseId}/sessions/${session.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ label, session_date: date || null, ...checkpoints }),
+      body: JSON.stringify({
+        label, session_date: date || null,
+        start_hour: hourRange.startHour, end_hour: hourRange.endHour,
+        ...checkpoints,
+      }),
     })
     setSaving(false)
     if (!res.ok) {
@@ -58,6 +80,10 @@ function SessionEditForm({ courseId, session, onDone }: { courseId: string; sess
           className="flex-1 px-2.5 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-sm" />
         <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
           className="px-2.5 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-sm" />
+      </div>
+      <div>
+        <label className="block text-xs text-gray-400 mb-1">참여시간</label>
+        <HourRangeSelect startHour={hourRange.startHour} endHour={hourRange.endHour} onChange={setHourRange} />
       </div>
       <div className="flex gap-3">
         {CHECKPOINT_FIELDS.map(([key, label2]) => (
@@ -92,6 +118,7 @@ export default function SessionManager({
   const [adding, setAdding] = useState(false)
   const [newLabel, setNewLabel] = useState('')
   const [newDate, setNewDate] = useState('')
+  const [newHourRange, setNewHourRange] = useState({ startHour: 9, endHour: 10 })
   const [newCheckpoints, setNewCheckpoints] = useState({
     checkpoint_start_enabled: true,
     checkpoint_mid_enabled: false,
@@ -105,10 +132,18 @@ export default function SessionManager({
       setAddError('체크포인트를 최소 1개 이상 선택해주세요.')
       return
     }
+    if (newHourRange.endHour <= newHourRange.startHour) {
+      setAddError('종료 시각은 시작 시각보다 늦어야 합니다.')
+      return
+    }
     const res = await fetch(`/api/edu/courses/${courseId}/sessions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ label: newLabel || `${sessions.length + 1}회차`, session_date: newDate || null, ...newCheckpoints }),
+      body: JSON.stringify({
+        label: newLabel || `${sessions.length + 1}회차`, session_date: newDate || null,
+        start_hour: newHourRange.startHour, end_hour: newHourRange.endHour,
+        ...newCheckpoints,
+      }),
     })
     if (!res.ok) {
       const data = await res.json().catch(() => ({}))
@@ -118,6 +153,7 @@ export default function SessionManager({
     setAdding(false)
     setNewLabel('')
     setNewDate('')
+    setNewHourRange({ startHour: 9, endHour: 10 })
     setAddError('')
     onChanged()
   }
@@ -147,6 +183,9 @@ export default function SessionManager({
                 <p className="text-sm font-medium text-gray-900 truncate">{session.label}</p>
                 <div className="flex items-center gap-2 mt-1">
                   <span className="text-xs text-gray-400">{session.session_date || '날짜 미정'}</span>
+                  <span className="text-xs text-gray-400">
+                    {formatHourRange(session.start_hour, session.end_hour) ?? formatHours(session.duration_minutes)}
+                  </span>
                   <CheckpointBadges session={session} />
                 </div>
               </div>
@@ -169,6 +208,10 @@ export default function SessionManager({
                 className="flex-1 px-2.5 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-sm" />
               <input type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)}
                 className="px-2.5 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-sm" />
+            </div>
+            <div className="mt-2">
+              <label className="block text-xs text-gray-400 mb-1">참여시간</label>
+              <HourRangeSelect startHour={newHourRange.startHour} endHour={newHourRange.endHour} onChange={setNewHourRange} />
             </div>
             <div className="flex gap-3 mt-2">
               {CHECKPOINT_FIELDS.map(([key, label]) => (
